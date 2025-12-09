@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Data Visiting PoC - Home{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>Data Visiting PoC</h1>
+    <p class="hero-subtitle">
+        Discover datasets across FAIR Data Points and compose standardized data access requests
+    </p>
+</div>
+
+<section class="intro">
+    <h2>What is Data Visiting?</h2>
+    <p>
+        Data visiting (code-to-data) is an approach where your analysis queries are sent to
+        datasets for local execution, returning only verified results. This tool helps you:
+    </p>
+    <ul>
+        <li>Discover datasets across multiple FAIR Data Points</li>
+        <li>Browse and filter datasets by theme or keyword</li>
+        <li>Compose standardized data access request emails</li>
+        <li>Send requests to dataset contact points</li>
+    </ul>
+</section>
+
+<section class="quick-start">
+    <h2>Quick Start</h2>
+    <div class="steps">
+        <div class="step">
+            <div class="step-number">1</div>
+            <h3>Add FDP Endpoints</h3>
+            <p>Configure FAIR Data Point endpoints to discover datasets from.</p>
+            <a href="{{ url_for('fdp.add') }}" class="btn btn-primary">Add FDP</a>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <h3>Browse Datasets</h3>
+            <p>Explore available datasets and filter by theme or keyword.</p>
+            <a href="{{ url_for('datasets.browse') }}" class="btn btn-secondary">Browse Datasets</a>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <h3>Compose Request</h3>
+            <p>Select datasets and create a data access request email.</p>
+            <a href="{{ url_for('request.basket') }}" class="btn btn-secondary">View Request</a>
+        </div>
+    </div>
+</section>
+
+<section class="status">
+    <h2>Current Status</h2>
+    <div class="status-cards">
+        <div class="status-card">
+            <div class="status-number">{{ fdp_count }}</div>
+            <div class="status-label">FDPs Configured</div>
+        </div>
+        <div class="status-card">
+            <div class="status-number">{{ basket_count }}</div>
+            <div class="status-label">Datasets in Basket</div>
+        </div>
+    </div>
+</section>
+{% endblock %}

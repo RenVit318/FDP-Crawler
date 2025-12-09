@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Add FDP - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Add FAIR Data Point</h1>
+
+<div class="card">
+    <form method="POST" action="{{ url_for('fdp.add') }}">
+        <div class="form-group">
+            <label for="url">FDP URL</label>
+            <input type="url" id="url" name="url" class="form-control"
+                   placeholder="https://example.org/fdp"
+                   value="{{ url if url else '' }}" required>
+            <p class="form-hint">Enter the URL of the FAIR Data Point endpoint</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="is_index" {% if is_index %}checked{% endif %}>
+                <span>This is an index FDP (contains links to other FDPs)</span>
+            </label>
+            <p class="form-hint">Check this if the FDP links to other FDPs that should also be added</p>
+        </div>
+
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary">Add FDP</button>
+            <a href="{{ url_for('fdp.list_fdps') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

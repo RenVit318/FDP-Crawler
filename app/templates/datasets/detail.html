@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dataset.title }} - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('datasets.browse') }}">Datasets</a> &raquo;
+    <span>{{ dataset.title }}</span>
+</div>
+
+<h1>{{ dataset.title }}</h1>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Dataset Details</span>
+        {% if in_basket %}
+        <span class="status-badge status-active">In Basket</span>
+        {% endif %}
+    </div>
+
+    <div class="card-body">
+        {% if dataset.description %}
+        <div class="detail-section">
+            <h3>Description</h3>
+            <p>{{ dataset.description }}</p>
+        </div>
+        {% endif %}
+
+        <div class="detail-section">
+            <h3>Source</h3>
+            <dl class="detail-list">
+                <dt>FDP</dt>
+                <dd>{{ dataset.fdp_title }}</dd>
+
+                <dt>Dataset URI</dt>
+                <dd><a href="{{ dataset.uri }}" target="_blank">{{ dataset.uri }}</a></dd>
+
+                {% if dataset.landing_page %}
+                <dt>Landing Page</dt>
+                <dd><a href="{{ dataset.landing_page }}" target="_blank">{{ dataset.landing_page }}</a></dd>
+                {% endif %}
+            </dl>
+        </div>
+
+        {% if dataset.publisher or dataset.creator %}
+        <div class="detail-section">
+            <h3>Attribution</h3>
+            <dl class="detail-list">
+                {% if dataset.publisher %}
+                <dt>Publisher</dt>
+                <dd>{{ dataset.publisher }}</dd>
+                {% endif %}
+
+                {% if dataset.creator %}
+                <dt>Creator</dt>
+                <dd>{{ dataset.creator }}</dd>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        {% if dataset.contact_point %}
+        <div class="detail-section">
+            <h3>Contact Information</h3>
+            <dl class="detail-list">
+                {% if dataset.contact_point.name %}
+                <dt>Name</dt>
+                <dd>{{ dataset.contact_point.name }}</dd>
+                {% endif %}
+
+                {% if dataset.contact_point.email %}
+                <dt>Email</dt>
+                <dd><a href="mailto:{{ dataset.contact_point.email }}">{{ dataset.contact_point.email }}</a></dd>
+                {% endif %}
+
+                {% if dataset.contact_point.url %}
+                <dt>URL</dt>
+                <dd><a href="{{ dataset.contact_point.url }}" target="_blank">{{ dataset.contact_point.url }}</a></dd>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        {% if dataset.keywords %}
+        <div class="detail-section">
+            <h3>Keywords</h3>
+            <div class="dataset-keywords">
+                {% for keyword in dataset.keywords %}
+                <span class="keyword-tag">{{ keyword }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if dataset.theme_labels %}
+        <div class="detail-section">
+            <h3>Themes</h3>
+            <div class="dataset-themes">
+                {% for label in dataset.theme_labels %}
+                <span class="theme-tag">{{ label }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if dataset.distributions %}
+        <div class="detail-section">
+            <h3>Distributions</h3>
+            <ul class="distribution-list">
+                {% for dist in dataset.distributions %}
+                <li><a href="{{ dist }}" target="_blank">{{ dist }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card-footer">
+        <a href="{{ url_for('datasets.browse') }}" class="btn btn-secondary">Back to Datasets</a>
+
+        {% if in_basket %}
+        <form action="{{ url_for('datasets.remove_from_basket', uri_hash=uri_hash) }}"
+              method="POST" style="display: inline;">
+            <input type="hidden" name="next" value="{{ request.url }}">
+            <button type="submit" class="btn btn-danger">Remove from Basket</button>
+        </form>
+        {% else %}
+        <form action="{{ url_for('datasets.add_to_basket', uri_hash=uri_hash) }}"
+              method="POST" style="display: inline;">
+            <input type="hidden" name="next" value="{{ request.url }}">
+            <button type="submit" class="btn btn-primary">Add to Basket</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix fdp: <https://w3id.org/fdp/fdp-o#> .
+
+<https://index.example.org/fdp>
+    a fdp:FAIRDataPoint, dcat:DataService ;
+    dct:title "Example FDP Index" ;
+    dct:description "An index FAIR Data Point that aggregates metadata from multiple institutional FDPs." ;
+    dct:publisher <https://index.example.org/organization> ;
+    rdfs:label "Example FDP Index" ;
+    fdp:metadataService <https://university-a.example.org/fdp> ;
+    fdp:metadataService <https://university-b.example.org/fdp> .
+
+<https://index.example.org/organization>
+    a foaf:Organization ;
+    foaf:name "Example Research Network" .
