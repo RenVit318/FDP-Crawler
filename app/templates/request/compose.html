@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Compose Request - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Compose Data Access Request</h1>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Request Details</span>
+    </div>
+
+    {% if missing_contacts %}
+    <div class="flash flash-warning" style="margin: 1rem;">
+        <strong>Warning:</strong> Some datasets are missing contact information:
+        <ul style="margin: 0.5rem 0 0 1.5rem;">
+            {% for title in missing_contacts %}
+            <li>{{ title }}</li>
+            {% endfor %}
+        </ul>
+        <p style="margin-top: 0.5rem;">You may still compose the request, but you will need to find contact information separately.</p>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('request.compose') }}">
+        <div class="card-body">
+            <h3 class="form-section-title">Requester Information</h3>
+
+            <div class="form-group">
+                <label for="name">Your Name <span class="required">*</span></label>
+                <input type="text" id="name" name="name" class="form-control"
+                       value="{{ form_data.get('name', '') }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Your Email <span class="required">*</span></label>
+                <input type="email" id="email" name="email" class="form-control"
+                       value="{{ form_data.get('email', '') }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="affiliation">Affiliation / Organization <span class="required">*</span></label>
+                <input type="text" id="affiliation" name="affiliation" class="form-control"
+                       value="{{ form_data.get('affiliation', '') }}" required>
+                <p class="form-hint">e.g., University of Example, Department of Data Science</p>
+            </div>
+
+            <div class="form-group">
+                <label for="orcid">ORCID (optional)</label>
+                <input type="text" id="orcid" name="orcid" class="form-control"
+                       placeholder="0000-0000-0000-0000"
+                       value="{{ form_data.get('orcid', '') }}">
+                <p class="form-hint">Your ORCID researcher ID, if you have one</p>
+            </div>
+
+            <h3 class="form-section-title">Request Details</h3>
+
+            <div class="form-group">
+                <label for="query">Query / Analysis Description <span class="required">*</span></label>
+                <textarea id="query" name="query" class="form-control" rows="5" required>{{ form_data.get('query', '') }}</textarea>
+                <p class="form-hint">Describe the analysis or query you want to run on the data. Be as specific as possible about the methods, variables, and expected outputs.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="purpose">Purpose / Justification <span class="required">*</span></label>
+                <textarea id="purpose" name="purpose" class="form-control" rows="4" required>{{ form_data.get('purpose', '') }}</textarea>
+                <p class="form-hint">Explain why you need access to this data and how it will be used in your research.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="output_constraints">Output Constraints (optional)</label>
+                <textarea id="output_constraints" name="output_constraints" class="form-control" rows="3">{{ form_data.get('output_constraints', '') }}</textarea>
+                <p class="form-hint">Any constraints or requirements for the output format (e.g., aggregated results only, minimum cell sizes, specific file formats).</p>
+            </div>
+
+            <div class="form-group">
+                <label for="timeline">Timeline (optional)</label>
+                <input type="text" id="timeline" name="timeline" class="form-control"
+                       value="{{ form_data.get('timeline', '') }}">
+                <p class="form-hint">When do you need the results? e.g., "Within 3 months" or "Before December 2024"</p>
+            </div>
+
+            <h3 class="form-section-title">Selected Datasets ({{ basket|length }})</h3>
+            <div class="selected-datasets">
+                {% for item in basket %}
+                <div class="dataset-summary">
+                    <strong>{{ item.title }}</strong>
+                    <span class="dataset-meta">from {{ item.fdp_title }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <a href="{{ url_for('request.basket') }}" class="btn btn-secondary">Back to Basket</a>
+            <button type="submit" class="btn btn-primary">Preview Email</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

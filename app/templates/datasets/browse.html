@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Datasets - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Browse Datasets</h1>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">
+            {% if total_datasets > 0 %}
+                {{ total_datasets }} dataset(s) found
+            {% else %}
+                No datasets available
+            {% endif %}
+        </span>
+        <form action="{{ url_for('datasets.refresh') }}" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-secondary btn-sm">Refresh Datasets</button>
+        </form>
+    </div>
+
+    <div class="filters">
+        <form method="GET" action="{{ url_for('datasets.browse') }}">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="search">Search</label>
+                    <input type="text" id="search" name="q" class="form-control"
+                           placeholder="Search datasets..." value="{{ query }}">
+                </div>
+
+                <div class="filter-group">
+                    <label for="theme">Theme</label>
+                    <select id="theme" name="theme" class="form-control">
+                        <option value="">All themes</option>
+                        {% for theme in themes %}
+                        <option value="{{ theme.uri }}" {% if theme_filter == theme.uri %}selected{% endif %}>
+                            {{ theme.label }} ({{ theme.count }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="sort">Sort by</label>
+                    <select id="sort" name="sort" class="form-control">
+                        <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Title</option>
+                        <option value="modified" {% if sort_by == 'modified' %}selected{% endif %}>Date Modified</option>
+                        <option value="fdp" {% if sort_by == 'fdp' %}selected{% endif %}>FDP</option>
+                    </select>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="{{ url_for('datasets.browse') }}" class="btn btn-secondary">Clear</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="card-body">
+        {% if datasets %}
+            {% for dataset in datasets %}
+            <div class="dataset-card {% if dataset.uri in basket_uris %}in-basket{% endif %}">
+                <div class="card-header">
+                    <h3 class="dataset-title">
+                        <a href="{{ url_for('datasets.detail', uri_hash=get_uri_hash(dataset.uri)) }}">
+                            {{ dataset.title }}
+                        </a>
+                    </h3>
+                    {% if dataset.uri in basket_uris %}
+                    <span class="status-badge status-active">In Basket</span>
+                    {% endif %}
+                </div>
+
+                {% if dataset.description %}
+                <p class="dataset-description">
+                    {{ dataset.description[:300] }}{% if dataset.description|length > 300 %}...{% endif %}
+                </p>
+                {% endif %}
+
+                <div class="dataset-meta">
+                    <strong>FDP:</strong> {{ dataset.fdp_title }}
+                </div>
+
+                {% if dataset.publisher %}
+                <div class="dataset-meta">
+                    <strong>Publisher:</strong> {{ dataset.publisher }}
+                </div>
+                {% endif %}
+
+                {% if dataset.keywords %}
+                <div class="dataset-keywords">
+                    {% for keyword in dataset.keywords[:5] %}
+                    <span class="keyword-tag">{{ keyword }}</span>
+                    {% endfor %}
+                    {% if dataset.keywords|length > 5 %}
+                    <span class="keyword-more">+{{ dataset.keywords|length - 5 }} more</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if dataset.theme_labels %}
+                <div class="dataset-themes">
+                    {% for label in dataset.theme_labels[:3] %}
+                    <span class="theme-tag">{{ label }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="card-footer">
+                    <a href="{{ url_for('datasets.detail', uri_hash=get_uri_hash(dataset.uri)) }}"
+                       class="btn btn-secondary btn-sm">View Details</a>
+
+                    {% if dataset.uri in basket_uris %}
+                    <form action="{{ url_for('datasets.remove_from_basket', uri_hash=get_uri_hash(dataset.uri)) }}"
+                          method="POST" style="display: inline;">
+                        <input type="hidden" name="next" value="{{ request.url }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove from Basket</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('datasets.add_to_basket', uri_hash=get_uri_hash(dataset.uri)) }}"
+                          method="POST" style="display: inline;">
+                        <input type="hidden" name="next" value="{{ request.url }}">
+                        <button type="submit" class="btn btn-primary btn-sm">Add to Basket</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="{{ url_for('datasets.browse', q=query, theme=theme_filter, sort=sort_by, page=page-1) }}"
+                   class="btn btn-secondary btn-sm">&laquo; Previous</a>
+                {% endif %}
+
+                <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+
+                {% if page < total_pages %}
+                <a href="{{ url_for('datasets.browse', q=query, theme=theme_filter, sort=sort_by, page=page+1) }}"
+                   class="btn btn-secondary btn-sm">Next &raquo;</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-state">
+                {% if query or theme_filter %}
+                    <h3>No datasets match your filters</h3>
+                    <p>Try adjusting your search criteria or <a href="{{ url_for('datasets.browse') }}">clear all filters</a>.</p>
+                {% else %}
+                    <h3>No datasets available</h3>
+                    <p>Add a FAIR Data Point to discover datasets.</p>
+                    <a href="{{ url_for('fdp.add') }}" class="btn btn-primary">Add FDP</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Request Basket - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Request Basket</h1>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Selected Datasets ({{ basket|length }})</span>
+        {% if basket %}
+        <form action="{{ url_for('request.clear') }}" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-danger btn-sm"
+                    onclick="return confirm('Clear all items from your basket?')">
+                Clear Basket
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="card-body">
+        {% if basket %}
+            {% if by_contact|length > 1 %}
+            <div class="flash flash-info" style="margin-bottom: 1rem;">
+                <strong>Note:</strong> Your basket contains datasets from {{ by_contact|length }} different contacts.
+                Separate emails will be generated for each contact.
+            </div>
+            {% endif %}
+
+            {% for email, items in by_contact.items() %}
+            <div class="contact-group">
+                <h3 class="contact-email">
+                    {% if email == 'No contact email' %}
+                    <span class="text-warning">No contact email available</span>
+                    {% else %}
+                    Contact: {{ email }}
+                    {% endif %}
+                </h3>
+
+                {% for item in items %}
+                <div class="dataset-card">
+                    <div class="card-header">
+                        <h4 class="dataset-title">{{ item.title }}</h4>
+                    </div>
+
+                    <div class="dataset-meta">
+                        <strong>FDP:</strong> {{ item.fdp_title }}
+                    </div>
+
+                    <div class="card-footer">
+                        <form action="{{ url_for('datasets.remove_from_basket', uri_hash=item.uri_hash) }}"
+                              method="POST" style="display: inline;">
+                            <input type="hidden" name="next" value="{{ url_for('request.basket') }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="card-footer" style="margin-top: 1.5rem;">
+                <a href="{{ url_for('datasets.browse') }}" class="btn btn-secondary">Add More Datasets</a>
+                <a href="{{ url_for('request.compose') }}" class="btn btn-primary">Compose Request</a>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>Your basket is empty</h3>
+                <p>Browse datasets and add them to your basket to compose a data access request.</p>
+                <a href="{{ url_for('datasets.browse') }}" class="btn btn-primary">Browse Datasets</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

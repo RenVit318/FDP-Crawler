@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Preview Email - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Email Preview</h1>
+
+<div class="flash flash-info" style="margin-bottom: 1rem;">
+    <strong>Note:</strong> {{ emails|length }} email(s) generated. Copy the content below and send to the respective contacts.
+</div>
+
+{% for email in emails %}
+<div class="card email-preview-card">
+    <div class="card-header">
+        <span class="card-title">Email {{ loop.index }} of {{ emails|length }}</span>
+        <button type="button" class="btn btn-secondary btn-sm copy-btn"
+                onclick="copyEmailBody('email-body-{{ loop.index }}')">
+            Copy Email Body
+        </button>
+    </div>
+
+    <div class="email-preview">
+        <div class="email-header">
+            <div class="email-to">
+                <span class="email-label">To:</span>
+                {% for recipient in email.recipients %}
+                <a href="mailto:{{ recipient }}?subject={{ email.subject|urlencode }}">{{ recipient }}</a>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+            <div class="email-subject">
+                <span class="email-label">Subject:</span>
+                {{ email.subject }}
+            </div>
+        </div>
+
+        <div class="email-body" id="email-body-{{ loop.index }}">{{ email.body }}</div>
+    </div>
+
+    <div class="card-footer">
+        <a href="mailto:{{ email.recipients|join(',') }}?subject={{ email.subject|urlencode }}&body={{ email.body|urlencode }}"
+           class="btn btn-primary">
+            Open in Email Client
+        </a>
+    </div>
+</div>
+{% endfor %}
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Actions</span>
+    </div>
+    <div class="card-footer">
+        <a href="{{ url_for('request.compose') }}" class="btn btn-secondary">Edit Request</a>
+        <form action="{{ url_for('request.finish') }}" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-primary"
+                    onclick="return confirm('This will clear your basket and request. Continue?')">
+                Finish &amp; Clear Basket
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+function copyEmailBody(elementId) {
+    const element = document.getElementById(elementId);
+    const text = element.textContent || element.innerText;
+
+    navigator.clipboard.writeText(text).then(function() {
+        showToast('Email body copied to clipboard!', 'success');
+    }).catch(function(err) {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showToast('Email body copied to clipboard!', 'success');
+        } catch (e) {
+            showToast('Failed to copy. Please select and copy manually.', 'error');
+        }
+        document.body.removeChild(textarea);
+    });
+}
+</script>
+{% endblock %}

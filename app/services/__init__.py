@@ -8,6 +8,7 @@ from app.services.fdp_client import (
     FDPTimeoutError,
 )
 from app.services.dataset_service import DatasetService, Theme
+from app.services.email_composer import EmailComposer
 
 __all__ = [
     'FDPClient',
@@ -17,4 +18,5 @@ __all__ = [
     'FDPTimeoutError',
     'DatasetService',
     'Theme',
+    'EmailComposer',
 ]

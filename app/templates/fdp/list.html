@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}FAIR Data Points - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>FAIR Data Points</h1>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Configured FDPs ({{ fdps|length }})</span>
+        <a href="{{ url_for('fdp.add') }}" class="btn btn-primary btn-sm">Add FDP</a>
+    </div>
+    <div class="card-body">
+        {% if fdps %}
+            {% for uri_hash, fdp in fdps.items() %}
+            <div class="dataset-card">
+                <div class="card-header">
+                    <h3 class="dataset-title">{{ fdp.title }}</h3>
+                    <span class="status-badge status-{{ fdp.status }}">{{ fdp.status }}</span>
+                </div>
+
+                {% if fdp.description %}
+                <p class="dataset-description">{{ fdp.description[:200] }}{% if fdp.description|length > 200 %}...{% endif %}</p>
+                {% endif %}
+
+                <div class="dataset-meta">
+                    <strong>URL:</strong> <a href="{{ fdp.uri }}" target="_blank">{{ fdp.uri }}</a>
+                </div>
+
+                {% if fdp.publisher %}
+                <div class="dataset-meta">
+                    <strong>Publisher:</strong> {{ fdp.publisher }}
+                </div>
+                {% endif %}
+
+                <div class="dataset-meta">
+                    <strong>Catalogs:</strong> {{ fdp.catalogs|length }}
+                    {% if fdp.is_index %}
+                    | <strong>Linked FDPs:</strong> {{ fdp.linked_fdps|length }}
+                    {% endif %}
+                </div>
+
+                {% if fdp.last_fetched %}
+                <div class="dataset-meta">
+                    <strong>Last fetched:</strong> {{ fdp.last_fetched }}
+                </div>
+                {% endif %}
+
+                {% if fdp.error_message %}
+                <div class="flash flash-error" style="margin-top: 0.5rem;">
+                    {{ fdp.error_message }}
+                </div>
+                {% endif %}
+
+                <div class="card-footer">
+                    <form action="{{ url_for('fdp.refresh', uri_hash=uri_hash) }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-secondary btn-sm">Refresh</button>
+                    </form>
+                    <form action="{{ url_for('fdp.remove', uri_hash=uri_hash) }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger btn-sm"
+                                onclick="return confirm('Are you sure you want to remove this FDP?')">
+                            Remove
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <h3>No FDPs configured</h3>
+                <p>Add a FAIR Data Point to start discovering datasets.</p>
+                <a href="{{ url_for('fdp.add') }}" class="btn btn-primary">Add FDP</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
