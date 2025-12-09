@@ -1,0 +1,41 @@
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix vcard: <http://www.w3.org/2006/vcard/ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://example.org/fdp/dataset/biodiversity-2023>
+    a dcat:Dataset ;
+    dct:title "Biodiversity Survey Data 2023" ;
+    dct:description "Annual biodiversity survey results covering species observations across protected areas in the region. Includes data on mammals, birds, reptiles, and amphibians collected through systematic field surveys." ;
+    dct:publisher <https://example.org/organization> ;
+    dct:creator "Dr. Jane Smith" ;
+    dct:issued "2023-06-15"^^xsd:date ;
+    dct:modified "2023-12-01"^^xsd:date ;
+    rdfs:label "Biodiversity Survey Data 2023" ;
+    dcat:theme <http://www.wikidata.org/entity/Q47041> ;
+    dcat:theme <http://www.wikidata.org/entity/Q7150> ;
+    dcat:keyword "ecology" ;
+    dcat:keyword "species" ;
+    dcat:keyword "survey" ;
+    dcat:keyword "biodiversity" ;
+    dcat:keyword "conservation" ;
+    dcat:contactPoint <https://example.org/fdp/dataset/biodiversity-2023/contact> ;
+    dcat:landingPage <https://example.org/datasets/biodiversity-2023> ;
+    dcat:distribution <https://example.org/fdp/dataset/biodiversity-2023/dist/csv> .
+
+<https://example.org/fdp/dataset/biodiversity-2023/contact>
+    a vcard:Kind ;
+    vcard:fn "Research Data Team" ;
+    vcard:hasEmail <mailto:data-requests@example.org> .
+
+<https://example.org/organization>
+    a foaf:Organization ;
+    foaf:name "Example University" .
+
+<http://www.wikidata.org/entity/Q47041>
+    rdfs:label "Biodiversity" .
+
+<http://www.wikidata.org/entity/Q7150>
+    rdfs:label "Ecology" .
