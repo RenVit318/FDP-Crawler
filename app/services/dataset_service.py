@@ -44,6 +44,9 @@ class DatasetService:
         """
         Fetch all datasets from the given FDPs.
 
+        Optimized to extract dataset metadata from catalog RDF instead of
+        making individual requests for each dataset.
+
         Args:
             fdp_uris: List of FDP URIs to fetch from.
 
@@ -55,30 +58,21 @@ class DatasetService:
         for fdp_uri in fdp_uris:
             try:
                 fdp = self.fdp_client.fetch_fdp(fdp_uri)
+                logger.info(f"Fetching datasets from {len(fdp.catalogs)} catalogs in {fdp.title}")
 
                 for catalog_uri in fdp.catalogs:
                     try:
-                        catalog = self.fdp_client.fetch_catalog(catalog_uri, fdp_uri)
-
-                        for dataset_uri in catalog.datasets:
-                            try:
-                                dataset = self.fdp_client.fetch_dataset(
-                                    dataset_uri,
-                                    catalog_uri,
-                                    fdp_uri,
-                                    fdp.title,
-                                )
-                                datasets.append(dataset)
-                                logger.debug(f"Fetched dataset: {dataset.title}")
-                            except FDPError as e:
-                                logger.warning(
-                                    f"Failed to fetch dataset {dataset_uri}: {e}"
-                                )
+                        # Use optimized method that extracts datasets from catalog RDF
+                        catalog_datasets = self.fdp_client.fetch_catalog_with_datasets(
+                            catalog_uri, fdp_uri, fdp.title
+                        )
+                        datasets.extend(catalog_datasets)
                     except FDPError as e:
                         logger.warning(f"Failed to fetch catalog {catalog_uri}: {e}")
             except FDPError as e:
                 logger.warning(f"Failed to fetch FDP {fdp_uri}: {e}")
 
+        logger.info(f"Total datasets fetched: {len(datasets)}")
         return datasets
 
     def filter_by_theme(

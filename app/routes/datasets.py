@@ -1,11 +1,14 @@
 """Dataset browsing routes."""
 
 import hashlib
+import logging
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for
 
 from app.services import FDPClient, DatasetService, FDPError
 from app.config import Config
 from app.models import Dataset, ContactPoint
+
+logger = logging.getLogger(__name__)
 
 datasets_bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 
@@ -69,8 +72,8 @@ def fetch_all_datasets() -> list:
     # Fetch all datasets
     datasets = service.get_all_datasets(fdp_uris)
 
-    # Cache in session
-    datasets_dicts = [ds.to_dict() for ds in datasets]
+    # Cache minimal info in session to avoid cookie size issues
+    datasets_dicts = [ds.to_minimal_dict() for ds in datasets]
     session['datasets_cache'] = datasets_dicts
     session.modified = True
 
@@ -170,7 +173,7 @@ def refresh():
 @datasets_bp.route('/<uri_hash>')
 def detail(uri_hash: str):
     """Show dataset detail view."""
-    # Find dataset in cache
+    # Find dataset in cache (minimal info)
     datasets_dicts = get_cached_datasets()
 
     dataset_dict = None
@@ -183,7 +186,19 @@ def detail(uri_hash: str):
         flash('Dataset not found.', 'error')
         return redirect(url_for('datasets.browse'))
 
-    dataset = dataset_from_dict(dataset_dict)
+    # Re-fetch full dataset details from the FDP
+    client = FDPClient(timeout=Config.FDP_TIMEOUT)
+    try:
+        dataset = client.fetch_dataset(
+            dataset_dict['uri'],
+            dataset_dict['catalog_uri'],
+            dataset_dict['fdp_uri'],
+            dataset_dict['fdp_title']
+        )
+    except Exception as e:
+        logger.error(f"Error fetching dataset details: {e}")
+        # Fallback to cached minimal data
+        dataset = dataset_from_dict(dataset_dict)
 
     # Check if in basket
     basket = session.get('basket', [])

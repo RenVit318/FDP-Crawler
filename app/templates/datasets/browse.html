@@ -72,24 +72,29 @@
                     {% endif %}
                 </div>
 
-                {% if dataset.description %}
-                <p class="dataset-description">
-                    {{ dataset.description[:300] }}{% if dataset.description|length > 300 %}...{% endif %}
-                </p>
-                {% endif %}
-
-                <div class="dataset-meta">
-                    <strong>FDP:</strong> {{ dataset.fdp_title }}
+                <!-- Context: FDP → Catalog hierarchy -->
+                <div class="dataset-meta" style="margin-bottom: 0.5rem; color: #666; font-size: 0.9em;">
+                    <strong>📁</strong> {{ dataset.fdp_title }}
+                    {% if dataset.catalog_title %} › {{ dataset.catalog_title }}{% endif %}
                 </div>
 
-                {% if dataset.publisher %}
-                <div class="dataset-meta">
-                    <strong>Publisher:</strong> {{ dataset.publisher }}
+                <!-- Themes (most important for decision-making) -->
+                {% if dataset.themes %}
+                <div class="dataset-themes" style="margin-bottom: 0.5rem;">
+                    <strong>Themes:</strong>
+                    {% for theme_uri in dataset.themes[:3] %}
+                    <span class="theme-tag">{{ theme_uri.split('/')[-1] }}</span>
+                    {% endfor %}
+                    {% if dataset.themes|length > 3 %}
+                    <span class="keyword-more">+{{ dataset.themes|length - 3 }} more</span>
+                    {% endif %}
                 </div>
                 {% endif %}
 
+                <!-- Keywords -->
                 {% if dataset.keywords %}
-                <div class="dataset-keywords">
+                <div class="dataset-keywords" style="margin-bottom: 0.5rem;">
+                    <strong>Keywords:</strong>
                     {% for keyword in dataset.keywords[:5] %}
                     <span class="keyword-tag">{{ keyword }}</span>
                     {% endfor %}
@@ -99,15 +104,20 @@
                 </div>
                 {% endif %}
 
-                {% if dataset.theme_labels %}
-                <div class="dataset-themes">
-                    {% for label in dataset.theme_labels[:3] %}
-                    <span class="theme-tag">{{ label }}</span>
-                    {% endfor %}
-                </div>
+                <!-- Description -->
+                {% if dataset.description %}
+                <p class="dataset-description">
+                    {{ dataset.description[:200] }}{% if dataset.description|length > 200 %}...{% endif %}
+                </p>
                 {% endif %}
 
                 <div class="card-footer">
+                    {% if dataset.landing_page %}
+                    <a href="{{ dataset.landing_page }}" target="_blank" class="btn btn-secondary btn-sm" title="View on FDP">
+                        🔗 Landing Page
+                    </a>
+                    {% endif %}
+
                     <a href="{{ url_for('datasets.detail', uri_hash=get_uri_hash(dataset.uri)) }}"
                        class="btn btn-secondary btn-sm">View Details</a>
 

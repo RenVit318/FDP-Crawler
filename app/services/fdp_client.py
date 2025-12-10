@@ -209,32 +209,65 @@ class FDPClient:
             FDPParseError: If RDF cannot be parsed.
         """
         graph = self._fetch_rdf(uri)
-        fdp_uri = URIRef(uri)
+        # Try both with and without trailing slash for URI matching
+        # FDPs may use either form in their RDF data
+        normalized_uri = uri.rstrip('/')
+        fdp_uri = URIRef(normalized_uri)
+        fdp_uri_with_slash = URIRef(normalized_uri + '/')
 
-        # Get title
+        # Get title - try both URI forms
         title = self._get_literal_value(graph, fdp_uri, DCT.title)
+        if not title:
+            title = self._get_literal_value(graph, fdp_uri_with_slash, DCT.title)
         if not title:
             title = self._get_literal_value(graph, fdp_uri, RDFS.label)
         if not title:
+            title = self._get_literal_value(graph, fdp_uri_with_slash, RDFS.label)
+        if not title:
             title = uri
 
-        # Get description
+        # Get description - try both URI forms
         description = self._get_literal_value(graph, fdp_uri, DCT.description)
+        if not description:
+            description = self._get_literal_value(graph, fdp_uri_with_slash, DCT.description)
 
-        # Get publisher
+        # Get publisher - try both URI forms
         publisher = self._get_literal_value(graph, fdp_uri, DCT.publisher)
+        if not publisher:
+            publisher = self._get_literal_value(graph, fdp_uri_with_slash, DCT.publisher)
 
-        # Get catalogs (via fdp:metadataCatalog or ldp:contains)
+        # Get catalogs (via fdp:metadataCatalog or ldp:DirectContainer)
+        # Try both URI forms
         catalogs = self._get_uri_list(graph, fdp_uri, FDP.metadataCatalog)
         if not catalogs:
-            catalogs = self._get_uri_list(graph, fdp_uri, LDP.contains)
+            catalogs = self._get_uri_list(graph, fdp_uri_with_slash, FDP.metadataCatalog)
+        logger.info(f"Found {len(catalogs)} catalogs via fdp:metadataCatalog for {uri}")
+
+        # Also check for catalogs in LDP DirectContainer
+        # Look for any ldp:DirectContainer that has this FDP as membershipResource
+        for container in graph.subjects(RDF.type, LDP.DirectContainer):
+            membership_resource = graph.value(container, LDP.membershipResource)
+            # Check both URI forms
+            if membership_resource == fdp_uri or membership_resource == fdp_uri_with_slash:
+                # Get all catalogs from ldp:contains
+                ldp_catalogs = self._get_uri_list(graph, container, LDP.contains)
+                logger.info(f"Found {len(ldp_catalogs)} catalogs via LDP DirectContainer for {uri}")
+                # Add any new catalogs not already in the list
+                for cat in ldp_catalogs:
+                    if cat not in catalogs:
+                        catalogs.append(cat)
+
+        logger.info(f"Total catalogs discovered for {uri}: {len(catalogs)}")
 
         # Check if this is an index FDP (has fdp:metadataService links)
+        # Try both URI forms
         linked_fdps = self._get_uri_list(graph, fdp_uri, FDP.metadataService)
+        if not linked_fdps:
+            linked_fdps = self._get_uri_list(graph, fdp_uri_with_slash, FDP.metadataService)
         is_index = len(linked_fdps) > 0
 
         return FairDataPoint(
-            uri=uri,
+            uri=normalized_uri,  # Return normalized URI (without trailing slash)
             title=title,
             description=description,
             publisher=publisher,
@@ -244,6 +277,86 @@ class FDPClient:
             last_fetched=datetime.now(),
             status='active',
         )
+
+    def fetch_catalog_with_datasets(
+        self, catalog_uri: str, fdp_uri: str, fdp_title: str
+    ) -> List[Dataset]:
+        """
+        Fetch catalog and extract dataset summaries from the catalog's RDF graph.
+        This is much faster than fetching each dataset individually.
+
+        Args:
+            catalog_uri: The catalog URI.
+            fdp_uri: Parent FDP URI.
+            fdp_title: Parent FDP title.
+
+        Returns:
+            List of Dataset objects with metadata extracted from catalog.
+        """
+        graph = self._fetch_rdf(catalog_uri)
+        datasets = []
+
+        # Get catalog title for context
+        catalog_uri_ref = URIRef(catalog_uri)
+        catalog_title = self._get_literal_value(graph, catalog_uri_ref, DCT.title)
+        if not catalog_title:
+            catalog_title = self._get_literal_value(graph, catalog_uri_ref, RDFS.label)
+        if not catalog_title:
+            catalog_title = catalog_uri.split('/')[-1]  # Use last part of URI as fallback
+
+        # Find all datasets in the catalog
+        dataset_uris = set()
+
+        # Method 1: dcat:dataset
+        for ds_uri in graph.objects(catalog_uri_ref, DCAT.dataset):
+            dataset_uris.add(str(ds_uri))
+
+        # Method 2: LDP DirectContainer
+        for container in graph.subjects(RDF.type, LDP.DirectContainer):
+            membership_resource = graph.value(container, LDP.membershipResource)
+            if membership_resource == catalog_uri_ref:
+                for ds_uri in graph.objects(container, LDP.contains):
+                    dataset_uris.add(str(ds_uri))
+
+        # Extract metadata for each dataset from the catalog graph
+        for ds_uri_str in dataset_uris:
+            ds_uri = URIRef(ds_uri_str)
+
+            # Essential fields only
+            title = self._get_literal_value(graph, ds_uri, DCT.title) or ds_uri_str
+            description = self._get_literal_value(graph, ds_uri, DCT.description)
+            publisher = self._get_literal_value(graph, ds_uri, DCT.publisher)
+            creator = self._get_literal_value(graph, ds_uri, DCT.creator)
+            themes = self._get_uri_list(graph, ds_uri, DCAT.theme)
+            keywords = []
+            for kw in graph.objects(ds_uri, DCAT.keyword):
+                keywords.append(str(kw))
+
+            # Contact point
+            contact_point = self._extract_contact_point(graph, ds_uri)
+
+            # Landing page
+            landing_page = self._get_literal_value(graph, ds_uri, DCAT.landingPage)
+
+            dataset = Dataset(
+                uri=ds_uri_str,
+                title=title,
+                catalog_uri=catalog_uri,
+                catalog_title=catalog_title,  # Add catalog title for context
+                fdp_uri=fdp_uri,
+                fdp_title=fdp_title,
+                description=description,
+                publisher=publisher,
+                creator=creator,
+                themes=themes,
+                keywords=keywords,
+                contact_point=contact_point,
+                landing_page=landing_page,
+            )
+            datasets.append(dataset)
+
+        logger.info(f"Extracted {len(datasets)} datasets from catalog {catalog_uri}")
+        return datasets
 
     def fetch_catalog(self, uri: str, fdp_uri: str) -> Catalog:
         """
@@ -276,8 +389,20 @@ class FDPClient:
         # Get publisher
         publisher = self._get_literal_value(graph, catalog_uri, DCT.publisher)
 
-        # Get datasets
+        # Get datasets (via dcat:dataset or ldp:DirectContainer)
         datasets = self._get_uri_list(graph, catalog_uri, DCAT.dataset)
+
+        # Also check for datasets in LDP DirectContainer
+        # Look for any ldp:DirectContainer that has this catalog as membershipResource
+        for container in graph.subjects(RDF.type, LDP.DirectContainer):
+            membership_resource = graph.value(container, LDP.membershipResource)
+            if membership_resource == catalog_uri:
+                # Get all datasets from ldp:contains
+                ldp_datasets = self._get_uri_list(graph, container, LDP.contains)
+                # Add any new datasets not already in the list
+                for ds in ldp_datasets:
+                    if ds not in datasets:
+                        datasets.append(ds)
 
         # Get themes
         themes = self._get_uri_list(graph, catalog_uri, DCAT.themeTaxonomy)

@@ -31,6 +31,7 @@ class Dataset:
     catalog_uri: str
     fdp_uri: str
     fdp_title: str
+    catalog_title: Optional[str] = None  # Catalog name for context
     description: Optional[str] = None
     publisher: Optional[str] = None
     creator: Optional[str] = None
@@ -62,4 +63,20 @@ class Dataset:
             'fdp_uri': self.fdp_uri,
             'fdp_title': self.fdp_title,
             'distributions': self.distributions,
+        }
+
+    def to_minimal_dict(self) -> Dict[str, Any]:
+        """Convert to minimal dictionary for session caching (to reduce size)."""
+        return {
+            'uri': self.uri,
+            'title': self.title,
+            'catalog_uri': self.catalog_uri,
+            'catalog_title': self.catalog_title,  # For context display
+            'fdp_uri': self.fdp_uri,
+            'fdp_title': self.fdp_title,
+            'description': self.description,  # For browse view
+            'themes': self.themes,  # Needed for filtering
+            'keywords': self.keywords,  # Needed for filtering
+            'contact_point': self.contact_point.to_dict() if self.contact_point else None,  # Needed for basket
+            'landing_page': self.landing_page,  # For direct links
         }
