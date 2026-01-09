@@ -46,17 +46,23 @@ class FDPTimeoutError(FDPError):
 class FDPClient:
     """Client for fetching and parsing FAIR Data Point metadata."""
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 30, verify_ssl: bool = True):
         """
         Initialize the FDP client.
 
         Args:
             timeout: Request timeout in seconds.
+            verify_ssl: Whether to verify SSL certificates.
         """
         self.timeout = timeout
+        self.verify_ssl = verify_ssl
         self._headers = {
             'Accept': 'text/turtle, application/ld+json;q=0.9, application/rdf+xml;q=0.8'
         }
+        if not verify_ssl:
+            # Suppress InsecureRequestWarning when SSL verification is disabled
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     def _fetch_rdf(self, uri: str) -> Graph:
         """
@@ -74,7 +80,9 @@ class FDPClient:
             FDPParseError: If the RDF cannot be parsed.
         """
         try:
-            response = requests.get(uri, headers=self._headers, timeout=self.timeout)
+            response = requests.get(
+                uri, headers=self._headers, timeout=self.timeout, verify=self.verify_ssl
+            )
             response.raise_for_status()
         except requests.exceptions.Timeout as e:
             logger.error(f"Timeout fetching {uri}: {e}")

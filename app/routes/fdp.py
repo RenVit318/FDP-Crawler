@@ -44,7 +44,7 @@ def add():
             return redirect(url_for('fdp.list_fdps'))
 
         # Try to fetch FDP metadata
-        client = FDPClient(timeout=Config.FDP_TIMEOUT)
+        client = FDPClient(timeout=Config.FDP_TIMEOUT, verify_ssl=Config.FDP_VERIFY_SSL)
 
         try:
             if is_index:

@@ -63,7 +63,7 @@ def fetch_all_datasets() -> list:
     if not fdps:
         return []
 
-    client = FDPClient(timeout=Config.FDP_TIMEOUT)
+    client = FDPClient(timeout=Config.FDP_TIMEOUT, verify_ssl=Config.FDP_VERIFY_SSL)
     service = DatasetService(client)
 
     # Get list of FDP URIs
@@ -102,7 +102,7 @@ def browse():
     datasets = [dataset_from_dict(d) for d in datasets_dicts]
 
     # Initialize service for filtering (no client needed for filtering)
-    client = FDPClient(timeout=Config.FDP_TIMEOUT)
+    client = FDPClient(timeout=Config.FDP_TIMEOUT, verify_ssl=Config.FDP_VERIFY_SSL)
     service = DatasetService(client)
 
     # Get available themes before filtering
@@ -187,7 +187,7 @@ def detail(uri_hash: str):
         return redirect(url_for('datasets.browse'))
 
     # Re-fetch full dataset details from the FDP
-    client = FDPClient(timeout=Config.FDP_TIMEOUT)
+    client = FDPClient(timeout=Config.FDP_TIMEOUT, verify_ssl=Config.FDP_VERIFY_SSL)
     try:
         dataset = client.fetch_dataset(
             dataset_dict['uri'],

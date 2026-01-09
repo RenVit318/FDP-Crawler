@@ -12,6 +12,7 @@ class Config:
     SECRET_KEY: str = os.environ.get('SECRET_KEY') or 'dev-secret-key'
     FDP_TIMEOUT: int = int(os.environ.get('FDP_TIMEOUT', 30))
     LOG_LEVEL: str = os.environ.get('LOG_LEVEL', 'INFO')
+    FDP_VERIFY_SSL: bool = os.environ.get('FDP_VERIFY_SSL', 'true').lower() != 'false'
 
     # Flask settings
     SESSION_TYPE: str = 'filesystem'
