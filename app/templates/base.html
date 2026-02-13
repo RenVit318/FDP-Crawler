@@ -3,14 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Data Visiting PoC{% endblock %}</title>
+    <title>{% block title %}Humanitarian Data Space{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <header>
+        <div class="logo-banner">
+            <a href="{{ url_for('main.index') }}">
+                <img src="{{ url_for('static', filename='img/EEPA_Logo.jpeg') }}" alt="EEPA Logo" class="site-logo">
+            </a>
+        </div>
         <nav class="navbar">
             <div class="nav-brand">
-                <a href="{{ url_for('main.index') }}">Data Visiting PoC</a>
+                <a href="{{ url_for('main.index') }}">Humanitarian Data Space</a>
             </div>
             <ul class="nav-links">
                 <li><a href="{{ url_for('main.index') }}">Home</a></li>
@@ -60,7 +65,7 @@
 
     <footer>
         <div class="container">
-            <p>Data Visiting PoC - Discover and request access to FAIR datasets</p>
+            <p>Humanitarian Data Space &mdash; Discover and request access to humanitarian datasets</p>
         </div>
     </footer>
 

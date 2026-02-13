@@ -1,4 +1,4 @@
-"""Integration tests for the Data Visiting PoC application."""
+"""Integration tests for the Humanitarian Data Space application."""
 
 import pytest
 import responses
@@ -86,7 +86,7 @@ class TestIndexRoute:
         """Test that the index page loads successfully."""
         response = client.get('/')
         assert response.status_code == 200
-        assert b'Data Visiting PoC' in response.data
+        assert b'Humanitarian Data Space' in response.data
 
     def test_index_shows_status(self, client):
         """Test that the index page shows status counts."""

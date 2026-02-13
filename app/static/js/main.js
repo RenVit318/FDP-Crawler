@@ -1,5 +1,5 @@
 /**
- * Main JavaScript for Data Visiting PoC
+ * Main JavaScript for Humanitarian Data Space
  */
 
 // Auto-dismiss flash messages after 5 seconds

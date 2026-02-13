@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Browse Datasets - Data Visiting PoC{% endblock %}
+{% block title %}Browse Datasets - Humanitarian Data Space{% endblock %}
 
 {% block content %}
 <h1>Browse Datasets</h1>
@@ -107,7 +107,12 @@
                 <!-- Description -->
                 {% if dataset.description %}
                 <p class="dataset-description">
-                    {{ dataset.description[:200] }}{% if dataset.description|length > 200 %}...{% endif %}
+                    {% if dataset.description|length > 200 %}
+                    <span class="desc-short">{{ dataset.description[:200] }}... <a href="#" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.nextElementSibling.style.display='inline';return false;">Show more</a></span>
+                    <span class="desc-full" style="display:none;">{{ dataset.description }} <a href="#" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.previousElementSibling.style.display='inline';return false;">Show less</a></span>
+                    {% else %}
+                    {{ dataset.description }}
+                    {% endif %}
                 </p>
                 {% endif %}
 
