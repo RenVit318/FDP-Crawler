@@ -1,23 +1,19 @@
 """Dataset browsing routes."""
 
-import hashlib
 import logging
+
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for
 
-from app.services import FDPClient, DatasetService, FDPError
 from app.config import Config
-from app.models import Dataset, ContactPoint
+from app.models import Dataset, ContactPoint, Distribution
+from app.services import FDPClient, DatasetService
+from app.utils import get_uri_hash
 
 logger = logging.getLogger(__name__)
 
 datasets_bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 
 DATASETS_PER_PAGE = 10
-
-
-def get_uri_hash(uri: str) -> str:
-    """Generate MD5 hash of URI for use as identifier."""
-    return hashlib.md5(uri.encode()).hexdigest()
 
 
 def get_cached_datasets() -> list:
@@ -36,6 +32,15 @@ def dataset_from_dict(data: dict) -> Dataset:
             url=contact_data.get('url'),
         )
 
+    # Reconstruct distributions (may be dicts or strings from older cache)
+    raw_dists = data.get('distributions', [])
+    distributions = []
+    for d in raw_dists:
+        if isinstance(d, dict):
+            distributions.append(Distribution.from_dict(d))
+        elif isinstance(d, str):
+            distributions.append(Distribution(uri=d))
+
     return Dataset(
         uri=data['uri'],
         title=data['title'],
@@ -45,14 +50,14 @@ def dataset_from_dict(data: dict) -> Dataset:
         description=data.get('description'),
         publisher=data.get('publisher'),
         creator=data.get('creator'),
-        issued=None,  # Skip datetime parsing for simplicity
+        issued=None,
         modified=None,
         themes=data.get('themes', []),
         theme_labels=data.get('theme_labels', []),
         keywords=data.get('keywords', []),
         contact_point=contact_point,
         landing_page=data.get('landing_page'),
-        distributions=data.get('distributions', []),
+        distributions=distributions,
     )
 
 
@@ -186,7 +191,7 @@ def detail(uri_hash: str):
         flash('Dataset not found.', 'error')
         return redirect(url_for('datasets.browse'))
 
-    # Re-fetch full dataset details from the FDP
+    # Re-fetch full dataset details from the FDP (includes distribution parsing)
     client = FDPClient(timeout=Config.FDP_TIMEOUT, verify_ssl=Config.FDP_VERIFY_SSL)
     try:
         dataset = client.fetch_dataset(
@@ -195,6 +200,8 @@ def detail(uri_hash: str):
             dataset_dict['fdp_uri'],
             dataset_dict['fdp_title']
         )
+        # Store discovered SPARQL endpoints in session for credential auto-population
+        _store_discovered_endpoints(dataset)
     except Exception as e:
         logger.error(f"Error fetching dataset details: {e}")
         # Fallback to cached minimal data
@@ -210,6 +217,31 @@ def detail(uri_hash: str):
         uri_hash=uri_hash,
         in_basket=in_basket,
     )
+
+
+def _store_discovered_endpoints(dataset: Dataset) -> None:
+    """Store discovered SPARQL endpoints in session for later credential config."""
+    if 'discovered_endpoints' not in session:
+        session['discovered_endpoints'] = {}
+
+    for dist in dataset.distributions:
+        if not dist.is_sparql_endpoint:
+            continue
+        # Use endpoint_url, falling back to access_url for SPARQL distributions
+        url = dist.endpoint_url or dist.access_url
+        if not url:
+            continue
+        endpoint_key = get_uri_hash(url)
+        session['discovered_endpoints'][endpoint_key] = {
+            'endpoint_url': url,
+            'dataset_uri': dataset.uri,
+            'dataset_title': dataset.title,
+            'fdp_uri': dataset.fdp_uri,
+            'fdp_title': dataset.fdp_title,
+            'distribution_title': dist.title,
+        }
+
+    session.modified = True
 
 
 @datasets_bp.route('/<uri_hash>/add-to-basket', methods=['POST'])
@@ -246,7 +278,9 @@ def add_to_basket(uri_hash: str):
         flash(f'Added "{dataset_dict["title"]}" to your basket.', 'success')
 
     # Redirect back to the referring page
-    next_url = request.form.get('next') or request.referrer or url_for('datasets.browse')
+    next_url = request.form.get('next') or request.referrer
+    if not next_url or not next_url.startswith('/') or next_url.startswith('//'):
+        next_url = url_for('datasets.browse')
     return redirect(next_url)
 
 
@@ -266,5 +300,7 @@ def remove_from_basket(uri_hash: str):
         flash('Removed dataset from basket.', 'success')
 
     # Redirect back to the referring page
-    next_url = request.form.get('next') or request.referrer or url_for('datasets.browse')
+    next_url = request.form.get('next') or request.referrer
+    if not next_url or not next_url.startswith('/') or next_url.startswith('//'):
+        next_url = url_for('datasets.browse')
     return redirect(next_url)

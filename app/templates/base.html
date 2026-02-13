@@ -25,6 +25,18 @@
                         {% endif %}
                     </a>
                 </li>
+                {% if session.get('user') %}
+                <li><a href="{{ url_for('sparql.index') }}">SPARQL</a></li>
+                <li>
+                    <form method="POST" action="{{ url_for('auth.logout') }}" style="display: inline; margin: 0;">
+                        <button type="submit" class="btn btn-sm btn-secondary" style="padding: 0.4rem 0.8rem;">
+                            Logout ({{ session.user.username }})
+                        </button>
+                    </form>
+                </li>
+                {% else %}
+                <li><a href="{{ url_for('auth.login') }}" class="btn btn-sm btn-primary" style="padding: 0.4rem 0.8rem;">Login</a></li>
+                {% endif %}
             </ul>
         </nav>
     </header>

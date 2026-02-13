@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Query Results - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Query Results</h1>
+
+<div class="status-cards">
+    <div class="status-card">
+        <div class="status-number">{{ result.total_bindings }}</div>
+        <div class="status-label">Total Results</div>
+    </div>
+    <div class="status-card">
+        <div class="status-number">{{ result.successful_endpoints }}</div>
+        <div class="status-label">Successful</div>
+    </div>
+    {% if result.failed_endpoints > 0 %}
+    <div class="status-card" style="border-color: var(--error);">
+        <div class="status-number" style="color: var(--error);">{{ result.failed_endpoints }}</div>
+        <div class="status-label">Failed</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Query</span>
+    </div>
+    <div class="card-body">
+        <pre style="background: var(--background); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.85rem; white-space: pre-wrap;">{{ result.query.query_text }}</pre>
+    </div>
+    <div class="card-footer">
+        <a href="{{ url_for('sparql.query') }}" class="btn btn-primary">New Query</a>
+        <form method="POST" action="{{ url_for('sparql.clear_results') }}" style="display: inline;">
+            <button type="submit" class="btn btn-secondary">Clear Results</button>
+        </form>
+    </div>
+</div>
+
+{% for ep_result in result.endpoint_results %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">{{ ep_result.fdp_title }}</span>
+        {% if ep_result.success %}
+        <span class="status-badge status-active">{{ ep_result.bindings|length }} results</span>
+        {% else %}
+        <span class="status-badge status-error">Failed</span>
+        {% endif %}
+    </div>
+
+    <div class="card-body">
+        <div class="dataset-meta" style="margin-bottom: 1rem;">
+            <strong>Endpoint:</strong> {{ ep_result.endpoint_uri }}
+            &nbsp;|&nbsp;
+            <strong>Time:</strong> {{ ep_result.execution_time_ms }}ms
+        </div>
+
+        {% if ep_result.success and ep_result.bindings %}
+        <div style="overflow-x: auto;">
+            <table class="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                <thead>
+                    <tr>
+                    {% for var in ep_result.variables %}
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); background: var(--background); text-align: left; font-weight: 600;">
+                            ?{{ var }}
+                        </th>
+                    {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in ep_result.bindings %}
+                    <tr>
+                    {% for var in ep_result.variables %}
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color); vertical-align: top;">
+                            {% if row[var] %}
+                                {% if row[var].type == 'uri' %}
+                                    <a href="{{ row[var].value }}" target="_blank" rel="noopener"
+                                       style="word-break: break-all;">{{ row[var].value }}</a>
+                                {% elif row[var].type == 'literal' %}
+                                    <span style="word-break: break-word;">{{ row[var].value }}</span>
+                                    {% if row[var]['xml:lang'] %}
+                                        <span class="dataset-meta">@{{ row[var]['xml:lang'] }}</span>
+                                    {% elif row[var].datatype %}
+                                        <span class="dataset-meta">^^{{ row[var].datatype.split('#')[-1] }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    {{ row[var].value }}
+                                {% endif %}
+                            {% else %}
+                                <span class="dataset-meta">(unbound)</span>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if ep_result.bindings|length >= 100 %}
+        <p class="form-hint" style="margin-top: 1rem;">
+            Showing {{ ep_result.bindings|length }} results. Use LIMIT in your query to control result size.
+        </p>
+        {% endif %}
+
+        {% elif ep_result.success %}
+        <div class="empty-state" style="padding: 2rem;">
+            <p>No results returned from this endpoint.</p>
+        </div>
+
+        {% else %}
+        <div class="flash flash-error" style="margin: 0;">
+            <strong>Error:</strong> {{ ep_result.error_message }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+<div class="card-footer" style="margin-top: 1rem;">
+    <a href="{{ url_for('sparql.query') }}" class="btn btn-primary">New Query</a>
+    <a href="{{ url_for('sparql.index') }}" class="btn btn-secondary">Back to SPARQL</a>
+</div>
+{% endblock %}

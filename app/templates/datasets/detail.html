@@ -103,14 +103,106 @@
         </div>
         {% endif %}
 
+        {# --- Distributions section --- #}
         {% if dataset.distributions %}
         <div class="detail-section">
-            <h3>Distributions</h3>
-            <ul class="distribution-list">
-                {% for dist in dataset.distributions %}
-                <li><a href="{{ dist }}" target="_blank">{{ dist }}</a></li>
+            <h3>Distributions ({{ dataset.distributions|length }})</h3>
+
+            {% set sparql_dists = dataset.distributions|selectattr('is_sparql_endpoint')|list %}
+            {% set file_dists = dataset.distributions|rejectattr('is_sparql_endpoint')|list %}
+
+            {# SPARQL endpoints first #}
+            {% if sparql_dists %}
+            <div class="dist-group">
+                <h4 class="dist-group-title dist-group-sparql">SPARQL Endpoints</h4>
+                {% for dist in sparql_dists %}
+                <div class="dist-card dist-card-sparql">
+                    <div class="dist-card-header">
+                        <span class="dist-title">
+                            {{ dist.title or 'SPARQL Endpoint' }}
+                        </span>
+                        <span class="status-badge status-active">SPARQL</span>
+                    </div>
+                    {% if dist.description %}
+                    <p class="dist-description">{{ dist.description }}</p>
+                    {% endif %}
+                    <dl class="detail-list">
+                        {% if dist.endpoint_url %}
+                        <dt>Endpoint URL</dt>
+                        <dd><a href="{{ dist.endpoint_url }}" target="_blank">{{ dist.endpoint_url }}</a></dd>
+                        {% endif %}
+                        {% if dist.access_url and dist.access_url != dist.endpoint_url %}
+                        <dt>Access URL</dt>
+                        <dd><a href="{{ dist.access_url }}" target="_blank">{{ dist.access_url }}</a></dd>
+                        {% endif %}
+                        {% if dist.endpoint_description %}
+                        <dt>Description</dt>
+                        <dd>{{ dist.endpoint_description }}</dd>
+                        {% endif %}
+                        {% if dist.contact_point and dist.contact_point.email %}
+                        <dt>Contact</dt>
+                        <dd>
+                            {% if dist.contact_point.name %}{{ dist.contact_point.name }} &mdash; {% endif %}
+                            <a href="mailto:{{ dist.contact_point.email }}">{{ dist.contact_point.email }}</a>
+                        </dd>
+                        {% endif %}
+                    </dl>
+                    {% if session.get('user') and dist.endpoint_url %}
+                    <div class="dist-actions">
+                        <a href="{{ url_for('sparql.query') }}" class="btn btn-sm btn-primary">Query this endpoint</a>
+                    </div>
+                    {% elif dist.endpoint_url %}
+                    <div class="dist-actions">
+                        <a href="{{ url_for('auth.login', next=url_for('sparql.query')) }}" class="btn btn-sm btn-secondary">Login to query</a>
+                    </div>
+                    {% endif %}
+                </div>
                 {% endfor %}
-            </ul>
+            </div>
+            {% endif %}
+
+            {# File / other distributions #}
+            {% if file_dists %}
+            <div class="dist-group">
+                <h4 class="dist-group-title">Data Files &amp; Downloads</h4>
+                {% for dist in file_dists %}
+                <div class="dist-card">
+                    <div class="dist-card-header">
+                        <span class="dist-title">
+                            {{ dist.title or dist.uri.split('/')|last }}
+                        </span>
+                        {% if dist.media_type or dist.format %}
+                        <span class="dist-format-tag">{{ dist.media_type or dist.format }}</span>
+                        {% endif %}
+                    </div>
+                    {% if dist.description %}
+                    <p class="dist-description">{{ dist.description }}</p>
+                    {% endif %}
+                    <dl class="detail-list">
+                        {% if dist.access_url %}
+                        <dt>Access URL</dt>
+                        <dd><a href="{{ dist.access_url }}" target="_blank">{{ dist.access_url }}</a></dd>
+                        {% endif %}
+                        {% if dist.download_url %}
+                        <dt>Download</dt>
+                        <dd><a href="{{ dist.download_url }}" target="_blank">{{ dist.download_url }}</a></dd>
+                        {% endif %}
+                        {% if dist.byte_size %}
+                        <dt>Size</dt>
+                        <dd>{{ (dist.byte_size / 1024 / 1024)|round(2) }} MB</dd>
+                        {% endif %}
+                        {% if dist.contact_point and dist.contact_point.email %}
+                        <dt>Contact</dt>
+                        <dd>
+                            {% if dist.contact_point.name %}{{ dist.contact_point.name }} &mdash; {% endif %}
+                            <a href="mailto:{{ dist.contact_point.email }}">{{ dist.contact_point.email }}</a>
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>

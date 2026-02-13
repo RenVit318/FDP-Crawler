@@ -38,11 +38,15 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
     from app.routes.fdp import fdp_bp
     from app.routes.datasets import datasets_bp
     from app.routes.request import request_bp
+    from app.routes.auth import auth_bp
+    from app.routes.sparql import sparql_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(fdp_bp)
     app.register_blueprint(datasets_bp)
     app.register_blueprint(request_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(sparql_bp)
 
     # Initialize session defaults
     @app.before_request
@@ -54,5 +58,17 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
             session['basket'] = []
         if 'datasets_cache' not in session:
             session['datasets_cache'] = []
+        if 'endpoint_credentials' not in session:
+            session['endpoint_credentials'] = {}
+        if 'discovered_endpoints' not in session:
+            session['discovered_endpoints'] = {}
+
+    # Security headers
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
 
     return app

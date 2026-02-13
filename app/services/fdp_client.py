@@ -8,7 +8,7 @@ import requests
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import RDF, RDFS
 
-from app.models import FairDataPoint, Catalog, Dataset, ContactPoint
+from app.models import FairDataPoint, Dataset, ContactPoint, Distribution
 
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ FOAF = Namespace('http://xmlns.com/foaf/0.1/')
 VCARD = Namespace('http://www.w3.org/2006/vcard/ns#')
 FDP = Namespace('https://w3id.org/fdp/fdp-o#')
 LDP = Namespace('http://www.w3.org/ns/ldp#')
+VOID = Namespace('http://rdfs.org/ns/void#')
 
 
 class FDPError(Exception):
@@ -366,65 +367,6 @@ class FDPClient:
         logger.info(f"Extracted {len(datasets)} datasets from catalog {catalog_uri}")
         return datasets
 
-    def fetch_catalog(self, uri: str, fdp_uri: str) -> Catalog:
-        """
-        Fetch and parse a catalog from an FDP.
-
-        Args:
-            uri: The catalog URI.
-            fdp_uri: The parent FDP URI.
-
-        Returns:
-            Catalog with dataset URIs.
-
-        Raises:
-            FDPConnectionError: If catalog is unreachable.
-            FDPParseError: If RDF cannot be parsed.
-        """
-        graph = self._fetch_rdf(uri)
-        catalog_uri = URIRef(uri)
-
-        # Get title
-        title = self._get_literal_value(graph, catalog_uri, DCT.title)
-        if not title:
-            title = self._get_literal_value(graph, catalog_uri, RDFS.label)
-        if not title:
-            title = uri
-
-        # Get description
-        description = self._get_literal_value(graph, catalog_uri, DCT.description)
-
-        # Get publisher
-        publisher = self._get_literal_value(graph, catalog_uri, DCT.publisher)
-
-        # Get datasets (via dcat:dataset or ldp:DirectContainer)
-        datasets = self._get_uri_list(graph, catalog_uri, DCAT.dataset)
-
-        # Also check for datasets in LDP DirectContainer
-        # Look for any ldp:DirectContainer that has this catalog as membershipResource
-        for container in graph.subjects(RDF.type, LDP.DirectContainer):
-            membership_resource = graph.value(container, LDP.membershipResource)
-            if membership_resource == catalog_uri:
-                # Get all datasets from ldp:contains
-                ldp_datasets = self._get_uri_list(graph, container, LDP.contains)
-                # Add any new datasets not already in the list
-                for ds in ldp_datasets:
-                    if ds not in datasets:
-                        datasets.append(ds)
-
-        # Get themes
-        themes = self._get_uri_list(graph, catalog_uri, DCAT.themeTaxonomy)
-
-        return Catalog(
-            uri=uri,
-            title=title,
-            description=description,
-            publisher=publisher,
-            fdp_uri=fdp_uri,
-            datasets=datasets,
-            themes=themes,
-        )
-
     def fetch_dataset(
         self, uri: str, catalog_uri: str, fdp_uri: str, fdp_title: str
     ) -> Dataset:
@@ -494,8 +436,19 @@ class FDPClient:
             landing_page = str(lp)
             break
 
-        # Get distributions
-        distributions = self._get_uri_list(graph, dataset_uri, DCAT.distribution)
+        # Get distributions - fetch full metadata for each
+        distribution_uris = self._get_uri_list(graph, dataset_uri, DCAT.distribution)
+        distributions = []
+        for dist_uri in distribution_uris:
+            # First try to extract from the same graph (inline distributions)
+            dist = self.fetch_distribution(dist_uri, graph=graph)
+            # If we only got a URI back (no metadata), try fetching separately
+            if not dist.title and not dist.access_url and not dist.endpoint_url:
+                try:
+                    dist = self.fetch_distribution(dist_uri)
+                except Exception as e:
+                    logger.warning(f"Could not fetch distribution {dist_uri}: {e}")
+            distributions.append(dist)
 
         return Dataset(
             uri=uri,
@@ -516,27 +469,132 @@ class FDPClient:
             distributions=distributions,
         )
 
-    def discover_fdps_from_index(self, index_uri: str) -> List[str]:
+    def _is_sparql_endpoint(self, graph: Graph, node: URIRef) -> bool:
+        """Check if a resource is a SPARQL endpoint based on RDF type or properties."""
+        # Check rdf:type for dcat:DataService
+        for rdf_type in graph.objects(node, RDF.type):
+            type_str = str(rdf_type)
+            if 'DataService' in type_str:
+                return True
+
+        # Check for void:sparqlEndpoint
+        for _ in graph.objects(node, VOID.sparqlEndpoint):
+            return True
+
+        # Check for dcat:endpointURL (strong signal)
+        for _ in graph.objects(node, DCAT.endpointURL):
+            return True
+
+        # Heuristic: check if endpoint URL or access URL contains sparql-like patterns
+        for prop in [DCAT.endpointURL, DCAT.accessURL]:
+            for url_node in graph.objects(node, prop):
+                url_str = str(url_node).lower()
+                if any(hint in url_str for hint in ['sparql', 'repositories', 'allegrograph']):
+                    return True
+
+        return False
+
+    def _extract_endpoint_url(self, graph: Graph, node: URIRef) -> Optional[str]:
+        """Extract endpoint URL from a distribution or data service."""
+        # Try dcat:endpointURL first (most specific)
+        for url in graph.objects(node, DCAT.endpointURL):
+            return str(url)
+
+        # Try void:sparqlEndpoint
+        for url in graph.objects(node, VOID.sparqlEndpoint):
+            return str(url)
+
+        # Check if this distribution links to a dcat:accessService with an endpoint
+        for service in graph.objects(node, DCAT.accessService):
+            for url in graph.objects(service, DCAT.endpointURL):
+                return str(url)
+
+        # Fallback: use accessURL if it looks like a SPARQL endpoint
+        for url in graph.objects(node, DCAT.accessURL):
+            url_str = str(url).lower()
+            if any(hint in url_str for hint in ['sparql', 'repositories', 'allegrograph']):
+                return str(url)
+
+        return None
+
+    def fetch_distribution(self, uri: str, graph: Optional[Graph] = None) -> Distribution:
         """
-        Extract linked FDP URIs from an index FDP.
+        Fetch and parse a single distribution's metadata.
 
         Args:
-            index_uri: URI of the index FDP.
+            uri: The distribution URI.
+            graph: Optional pre-fetched graph containing this distribution's data.
 
         Returns:
-            List of discovered FDP URIs.
-
-        Raises:
-            FDPConnectionError: If index FDP is unreachable.
-            FDPParseError: If RDF cannot be parsed.
+            Distribution with full metadata.
         """
-        graph = self._fetch_rdf(index_uri)
-        index_ref = URIRef(index_uri)
+        if graph is None:
+            try:
+                graph = self._fetch_rdf(uri)
+            except FDPError:
+                # Return minimal distribution if fetch fails
+                return Distribution(uri=uri)
 
-        # Get linked FDPs via fdp:metadataService
-        linked_fdps = self._get_uri_list(graph, index_ref, FDP.metadataService)
+        dist_uri = URIRef(uri)
 
-        return linked_fdps
+        title = self._get_literal_value(graph, dist_uri, DCT.title)
+        if not title:
+            title = self._get_literal_value(graph, dist_uri, RDFS.label)
+
+        description = self._get_literal_value(graph, dist_uri, DCT.description)
+
+        # Access URLs
+        access_url = None
+        for url in graph.objects(dist_uri, DCAT.accessURL):
+            access_url = str(url)
+            break
+
+        download_url = None
+        for url in graph.objects(dist_uri, DCAT.downloadURL):
+            download_url = str(url)
+            break
+
+        # Media type and format
+        media_type = self._get_literal_value(graph, dist_uri, DCAT.mediaType)
+        dist_format = self._get_literal_value(graph, dist_uri, DCT['format'])
+
+        # Byte size
+        byte_size = None
+        size_val = self._get_literal_value(graph, dist_uri, DCAT.byteSize)
+        if size_val:
+            try:
+                byte_size = int(size_val)
+            except (ValueError, TypeError):
+                pass
+
+        # SPARQL endpoint detection
+        endpoint_url = self._extract_endpoint_url(graph, dist_uri)
+        endpoint_description = self._get_literal_value(
+            graph, dist_uri, DCAT.endpointDescription
+        )
+        is_sparql = self._is_sparql_endpoint(graph, dist_uri)
+
+        # If we found an endpoint URL but didn't detect SPARQL, mark it anyway
+        if endpoint_url and not is_sparql:
+            is_sparql = True
+
+        # Contact point at distribution level
+        contact_point = self._extract_contact_point(graph, dist_uri)
+
+        return Distribution(
+            uri=uri,
+            title=title,
+            description=description,
+            access_url=access_url,
+            download_url=download_url,
+            media_type=media_type,
+            format=dist_format,
+            byte_size=byte_size,
+            endpoint_url=endpoint_url,
+            endpoint_description=endpoint_description,
+            is_sparql_endpoint=is_sparql,
+            contact_point=contact_point,
+        )
 
     def fetch_all_from_index(self, index_uri: str) -> List[FairDataPoint]:
         """

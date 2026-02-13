@@ -853,18 +853,82 @@ textarea.form-control {
     margin: 0;
 }
 
-.distribution-list {
-    list-style: none;
-    padding: 0;
+/* Distribution cards */
+.dist-group {
+    margin-bottom: 1.5rem;
 }
 
-.distribution-list li {
-    padding: 0.5rem 0;
+.dist-group-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--border-color);
 }
 
-.distribution-list li:last-child {
-    border-bottom: none;
+.dist-group-sparql {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-light);
+}
+
+.dist-card {
+    background: var(--background);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.dist-card:hover {
+    box-shadow: var(--shadow);
+    border-color: var(--primary-light);
+}
+
+.dist-card-sparql {
+    border-left: 4px solid var(--primary-color);
+    background: linear-gradient(to right, rgba(13, 92, 117, 0.03), transparent);
+}
+
+.dist-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.dist-title {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.dist-description {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+}
+
+.dist-format-tag {
+    background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+    color: #075985;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border: 1px solid #7DD3FC;
+    white-space: nowrap;
+}
+
+.dist-actions {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.dist-card .detail-list {
+    font-size: 0.875rem;
 }
 
 /* Page info in pagination - already defined above */

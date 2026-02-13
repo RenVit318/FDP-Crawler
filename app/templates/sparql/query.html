@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}SPARQL Editor - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>SPARQL Query Editor</h1>
+
+<div class="card">
+    <form method="POST" action="{{ url_for('sparql.query') }}">
+        <div class="card-body">
+            <h3 class="form-section-title">Select Endpoints</h3>
+            <p class="form-hint" style="margin-bottom: 1rem;">
+                Choose which SPARQL endpoints to query (from your basket datasets).
+                Authenticating as <strong>{{ session.user.username }}</strong>.
+            </p>
+
+            <div class="endpoint-selection" style="margin-bottom: 1.5rem;">
+            {% for ep in endpoints %}
+                <label class="form-check" style="display: block; margin-bottom: 0.75rem; padding: 0.75rem; background: var(--background); border-radius: 0.5rem; border-left: 4px solid var(--primary-color);">
+                    <input type="checkbox" name="endpoints" value="{{ ep.hash }}"
+                           {% if ep.hash in selected %}checked{% endif %}
+                           style="margin-right: 0.5rem;">
+                    <span>
+                        <strong>{{ ep.fdp_title }}</strong>
+                        <br>
+                        <span class="dataset-meta">{{ ep.endpoint_url }}</span>
+                        <br>
+                        <span class="dataset-meta">Dataset: {{ ep.dataset_title }}</span>
+                    </span>
+                </label>
+            {% endfor %}
+            </div>
+
+            <h3 class="form-section-title">SPARQL Query</h3>
+            <div class="form-group">
+                <textarea id="query" name="query" class="form-control"
+                          rows="15"
+                          style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.9rem;"
+                          placeholder="PREFIX ex: <http://example.org/>
+
+SELECT ?subject ?predicate ?object
+WHERE {
+    ?subject ?predicate ?object
+}
+LIMIT 100">{{ query_text }}</textarea>
+                <p class="form-hint">
+                    Enter your SPARQL query. The same query will be executed against all selected endpoints.
+                </p>
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <a href="{{ url_for('sparql.index') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Execute Query</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Query Tips</span>
+    </div>
+    <div class="card-body">
+        <ul style="margin: 0; padding-left: 1.5rem;">
+            <li style="margin-bottom: 0.5rem;">Use <code>LIMIT</code> to restrict result size</li>
+            <li style="margin-bottom: 0.5rem;">Start with simple queries to test connectivity</li>
+            <li style="margin-bottom: 0.5rem;">Results from each endpoint will be displayed separately</li>
+            <li style="margin-bottom: 0.5rem;">Failed endpoints will show error messages</li>
+            <li>Queries support standard SPARQL 1.1 syntax</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Example Queries</span>
+    </div>
+    <div class="card-body">
+        <h4 style="margin-bottom: 0.5rem;">List all classes:</h4>
+        <pre style="background: var(--background); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem;">SELECT DISTINCT ?class
+WHERE {
+    ?s a ?class
+}
+LIMIT 50</pre>
+
+        <h4 style="margin-bottom: 0.5rem;">Count triples:</h4>
+        <pre style="background: var(--background); padding: 1rem; border-radius: 0.5rem; overflow-x: auto;">SELECT (COUNT(*) AS ?count)
+WHERE {
+    ?s ?p ?o
+}</pre>
+    </div>
+</div>
+{% endblock %}

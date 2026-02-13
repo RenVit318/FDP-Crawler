@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}SPARQL Query - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>SPARQL Query Execution</h1>
+
+<p class="intro">
+    Execute SPARQL queries against endpoints discovered from your basket datasets.
+    Your login credentials are used to authenticate against all endpoints.
+</p>
+
+<div class="status-cards">
+    <div class="status-card">
+        <div class="status-number">{{ basket|length }}</div>
+        <div class="status-label">Datasets in Basket</div>
+    </div>
+    <div class="status-card">
+        <div class="status-number">{{ endpoints|length }}</div>
+        <div class="status-label">SPARQL Endpoints Available</div>
+    </div>
+</div>
+
+{% if endpoints %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Available Endpoints</span>
+        <span class="status-badge status-active">From your basket</span>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 1rem;">
+            These SPARQL endpoints were discovered from the distributions of datasets in your basket.
+            Logged in as <strong>{{ session.user.username }}</strong> &mdash; these credentials will be used for all queries.
+        </p>
+        {% for ep in endpoints %}
+        <div class="dist-card dist-card-sparql" style="margin-bottom: 0.75rem;">
+            <div class="dist-card-header">
+                <span class="dist-title">{{ ep.fdp_title }}</span>
+                <span class="status-badge status-active">SPARQL</span>
+            </div>
+            <div class="dataset-meta"><strong>Endpoint:</strong> {{ ep.endpoint_url }}</div>
+            <div class="dataset-meta"><strong>Dataset:</strong> {{ ep.dataset_title }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="card-footer">
+        <a href="{{ url_for('sparql.query') }}" class="btn btn-primary">Write Query</a>
+        <a href="{{ url_for('datasets.browse') }}" class="btn btn-secondary">Browse More Datasets</a>
+    </div>
+</div>
+
+{% elif basket %}
+<div class="card">
+    <div class="empty-state">
+        <h3>No SPARQL Endpoints Found</h3>
+        <p>
+            Your basket has {{ basket|length }} dataset(s), but no SPARQL endpoints have been discovered yet.
+            View the dataset detail pages to discover their distributions and SPARQL endpoints.
+        </p>
+        <a href="{{ url_for('request.basket') }}" class="btn btn-primary">View Basket</a>
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <h3>Basket is Empty</h3>
+        <p>Add datasets to your basket first. When a dataset has SPARQL endpoint distributions, they will appear here.</p>
+        <a href="{{ url_for('datasets.browse') }}" class="btn btn-primary">Browse Datasets</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

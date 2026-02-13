@@ -118,48 +118,6 @@ class TestFDPClientFetchFDP:
         assert 'timed out' in str(exc_info.value)
 
 
-class TestFDPClientFetchCatalog:
-    """Tests for FDPClient.fetch_catalog()."""
-
-    @responses.activate
-    def test_fetch_catalog_success(self, sample_catalog_rdf: str):
-        """Test successful catalog fetch."""
-        responses.add(
-            responses.GET,
-            'https://example.org/fdp/catalog/research-data',
-            body=sample_catalog_rdf,
-            content_type='text/turtle',
-        )
-
-        client = FDPClient()
-        catalog = client.fetch_catalog(
-            'https://example.org/fdp/catalog/research-data',
-            'https://example.org/fdp'
-        )
-
-        assert catalog.uri == 'https://example.org/fdp/catalog/research-data'
-        assert catalog.title == 'Research Data Catalog'
-        assert catalog.fdp_uri == 'https://example.org/fdp'
-        assert len(catalog.datasets) == 3
-        assert 'https://example.org/fdp/dataset/biodiversity-2023' in catalog.datasets
-
-    @responses.activate
-    def test_fetch_catalog_connection_error(self):
-        """Test handling of connection errors for catalog fetch."""
-        responses.add(
-            responses.GET,
-            'https://example.org/fdp/catalog/test',
-            body=RequestsConnectionError("Connection refused"),
-        )
-
-        client = FDPClient()
-        with pytest.raises(FDPConnectionError):
-            client.fetch_catalog(
-                'https://example.org/fdp/catalog/test',
-                'https://example.org/fdp'
-            )
-
-
 class TestFDPClientFetchDataset:
     """Tests for FDPClient.fetch_dataset()."""
 
@@ -315,38 +273,6 @@ class TestFDPClientHelpers:
 
 class TestFDPClientIndexDiscovery:
     """Tests for FDP index discovery functionality."""
-
-    @responses.activate
-    def test_discover_fdps_from_index(self, sample_fdp_index_rdf: str):
-        """Test discovering FDP URIs from an index."""
-        responses.add(
-            responses.GET,
-            'https://index.example.org/fdp',
-            body=sample_fdp_index_rdf,
-            content_type='text/turtle',
-        )
-
-        client = FDPClient()
-        linked_fdps = client.discover_fdps_from_index('https://index.example.org/fdp')
-
-        assert len(linked_fdps) == 2
-        assert 'https://university-a.example.org/fdp' in linked_fdps
-        assert 'https://university-b.example.org/fdp' in linked_fdps
-
-    @responses.activate
-    def test_discover_fdps_from_non_index(self, sample_fdp_root_rdf: str):
-        """Test discovering FDPs from a non-index FDP returns empty list."""
-        responses.add(
-            responses.GET,
-            'https://example.org/fdp',
-            body=sample_fdp_root_rdf,
-            content_type='text/turtle',
-        )
-
-        client = FDPClient()
-        linked_fdps = client.discover_fdps_from_index('https://example.org/fdp')
-
-        assert linked_fdps == []
 
     @responses.activate
     def test_fetch_all_from_index_success(

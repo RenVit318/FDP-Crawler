@@ -90,39 +90,6 @@ class DatasetService:
         """
         return [ds for ds in datasets if theme_uri in ds.themes]
 
-    def filter_by_keyword(
-        self, datasets: List[Dataset], keyword: str
-    ) -> List[Dataset]:
-        """
-        Filter datasets containing keyword in title/description/keywords.
-
-        Args:
-            datasets: Datasets to filter.
-            keyword: Keyword to search for (case-insensitive).
-
-        Returns:
-            Datasets containing the keyword.
-        """
-        keyword_lower = keyword.lower()
-        result = []
-
-        for ds in datasets:
-            # Check title
-            if ds.title and keyword_lower in ds.title.lower():
-                result.append(ds)
-                continue
-
-            # Check description
-            if ds.description and keyword_lower in ds.description.lower():
-                result.append(ds)
-                continue
-
-            # Check keywords
-            if any(keyword_lower in kw.lower() for kw in ds.keywords):
-                result.append(ds)
-
-        return result
-
     def search(self, datasets: List[Dataset], query: str) -> List[Dataset]:
         """
         Full-text search across dataset metadata.

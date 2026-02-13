@@ -102,23 +102,3 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
-// Form validation
-function validateForm(formId) {
-    const form = document.getElementById(formId);
-    if (!form) return true;
-
-    let isValid = true;
-    const requiredFields = form.querySelectorAll('[required]');
-
-    requiredFields.forEach(function(field) {
-        if (!field.value.trim()) {
-            field.classList.add('is-invalid');
-            isValid = false;
-        } else {
-            field.classList.remove('is-invalid');
-        }
-    });
-
-    return isValid;
-}

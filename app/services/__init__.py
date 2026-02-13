@@ -9,6 +9,13 @@ from app.services.fdp_client import (
 )
 from app.services.dataset_service import DatasetService, Theme
 from app.services.email_composer import EmailComposer
+from app.services.sparql_client import (
+    SPARQLClient,
+    SPARQLError,
+    SPARQLConnectionError,
+    SPARQLAuthError,
+    SPARQLQueryError,
+)
 
 __all__ = [
     'FDPClient',
@@ -19,4 +26,9 @@ __all__ = [
     'DatasetService',
     'Theme',
     'EmailComposer',
+    'SPARQLClient',
+    'SPARQLError',
+    'SPARQLConnectionError',
+    'SPARQLAuthError',
+    'SPARQLQueryError',
 ]

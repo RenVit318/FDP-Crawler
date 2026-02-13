@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Data Visiting PoC{% endblock %}
+
+{% block content %}
+<h1>Login</h1>
+
+<div class="card" style="max-width: 400px; margin: 0 auto;">
+    <div class="card-header">
+        <span class="card-title">Sign In</span>
+    </div>
+
+    <form method="POST" action="{{ url_for('auth.login') }}">
+        <div class="card-body">
+            <div class="form-group">
+                <label for="username">Username <span class="required">*</span></label>
+                <input type="text" id="username" name="username"
+                       class="form-control" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password <span class="required">*</span></label>
+                <input type="password" id="password" name="password"
+                       class="form-control" required>
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Login</button>
+        </div>
+    </form>
+</div>
+
+<div style="text-align: center; margin-top: 1rem; color: var(--text-secondary);">
+    <p>Your credentials will be used to authenticate with AllegroGraph endpoints.</p>
+    <p>Credentials are stored in your session only.</p>
+</div>
+{% endblock %}

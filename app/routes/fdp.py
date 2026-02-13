@@ -1,17 +1,12 @@
 """FDP management routes."""
 
-import hashlib
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for
 
-from app.services import FDPClient, FDPConnectionError, FDPParseError, FDPTimeoutError
 from app.config import Config
+from app.services import FDPClient, FDPConnectionError, FDPParseError, FDPTimeoutError
+from app.utils import get_uri_hash
 
 fdp_bp = Blueprint('fdp', __name__, url_prefix='/fdp')
-
-
-def get_uri_hash(uri: str) -> str:
-    """Generate MD5 hash of URI for use as identifier."""
-    return hashlib.md5(uri.encode()).hexdigest()
 
 
 @fdp_bp.route('/')

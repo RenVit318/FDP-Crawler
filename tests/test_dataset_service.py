@@ -96,42 +96,6 @@ class TestDatasetServiceFilter:
 
         assert len(result) == 0
 
-    def test_filter_by_keyword_in_title(self, mock_fdp_client, sample_datasets):
-        """Test filtering by keyword found in title."""
-        service = DatasetService(mock_fdp_client)
-
-        result = service.filter_by_keyword(sample_datasets, 'biodiversity')
-
-        assert len(result) == 1
-        assert result[0].title == 'Biodiversity Survey Data'
-
-    def test_filter_by_keyword_in_description(self, mock_fdp_client, sample_datasets):
-        """Test filtering by keyword found in description."""
-        service = DatasetService(mock_fdp_client)
-
-        result = service.filter_by_keyword(sample_datasets, 'weather')
-
-        assert len(result) == 1
-        assert result[0].title == 'Climate Observations'
-
-    def test_filter_by_keyword_in_keywords(self, mock_fdp_client, sample_datasets):
-        """Test filtering by keyword found in keywords list."""
-        service = DatasetService(mock_fdp_client)
-
-        result = service.filter_by_keyword(sample_datasets, 'genetics')
-
-        assert len(result) == 1
-        assert result[0].title == 'Genomics Study Results'
-
-    def test_filter_by_keyword_case_insensitive(self, mock_fdp_client, sample_datasets):
-        """Test that keyword filtering is case-insensitive."""
-        service = DatasetService(mock_fdp_client)
-
-        result_upper = service.filter_by_keyword(sample_datasets, 'ECOLOGY')
-        result_lower = service.filter_by_keyword(sample_datasets, 'ecology')
-        result_mixed = service.filter_by_keyword(sample_datasets, 'Ecology')
-
-        assert len(result_upper) == len(result_lower) == len(result_mixed) == 2
 
 
 class TestDatasetServiceSearch:
@@ -248,13 +212,9 @@ class TestDatasetServiceGetAll:
 
     def test_get_all_datasets_success(self, mock_fdp_client):
         """Test successfully fetching all datasets."""
-        # Set up mock responses
         mock_fdp = MagicMock()
         mock_fdp.title = 'Test FDP'
         mock_fdp.catalogs = ['https://example.org/catalog/1']
-
-        mock_catalog = MagicMock()
-        mock_catalog.datasets = ['https://example.org/dataset/1']
 
         mock_dataset = Dataset(
             uri='https://example.org/dataset/1',
@@ -265,8 +225,7 @@ class TestDatasetServiceGetAll:
         )
 
         mock_fdp_client.fetch_fdp.return_value = mock_fdp
-        mock_fdp_client.fetch_catalog.return_value = mock_catalog
-        mock_fdp_client.fetch_dataset.return_value = mock_dataset
+        mock_fdp_client.fetch_catalog_with_datasets.return_value = [mock_dataset]
 
         service = DatasetService(mock_fdp_client)
         result = service.get_all_datasets(['https://example.org/fdp'])
@@ -291,7 +250,7 @@ class TestDatasetServiceGetAll:
         mock_fdp.catalogs = ['https://example.org/catalog/1']
 
         mock_fdp_client.fetch_fdp.return_value = mock_fdp
-        mock_fdp_client.fetch_catalog.side_effect = FDPConnectionError("Connection failed")
+        mock_fdp_client.fetch_catalog_with_datasets.side_effect = FDPConnectionError("Connection failed")
 
         service = DatasetService(mock_fdp_client)
         result = service.get_all_datasets(['https://example.org/fdp'])
@@ -300,28 +259,27 @@ class TestDatasetServiceGetAll:
         assert result == []
 
     def test_get_all_datasets_handles_dataset_error(self, mock_fdp_client):
-        """Test that dataset errors are handled gracefully."""
+        """Test that catalog-level errors still return other datasets."""
         mock_fdp = MagicMock()
         mock_fdp.title = 'Test FDP'
-        mock_fdp.catalogs = ['https://example.org/catalog/1']
-
-        mock_catalog = MagicMock()
-        mock_catalog.datasets = ['https://example.org/dataset/1', 'https://example.org/dataset/2']
+        mock_fdp.catalogs = [
+            'https://example.org/catalog/1',
+            'https://example.org/catalog/2',
+        ]
 
         mock_dataset = Dataset(
             uri='https://example.org/dataset/2',
             title='Test Dataset 2',
-            catalog_uri='https://example.org/catalog/1',
+            catalog_uri='https://example.org/catalog/2',
             fdp_uri='https://example.org/fdp',
             fdp_title='Test FDP',
         )
 
         mock_fdp_client.fetch_fdp.return_value = mock_fdp
-        mock_fdp_client.fetch_catalog.return_value = mock_catalog
-        # First dataset fails, second succeeds
-        mock_fdp_client.fetch_dataset.side_effect = [
+        # First catalog fails, second succeeds
+        mock_fdp_client.fetch_catalog_with_datasets.side_effect = [
             FDPConnectionError("Connection failed"),
-            mock_dataset,
+            [mock_dataset],
         ]
 
         service = DatasetService(mock_fdp_client)
@@ -341,12 +299,6 @@ class TestDatasetServiceGetAll:
         mock_fdp2.title = 'FDP 2'
         mock_fdp2.catalogs = ['https://other.org/catalog/1']
 
-        mock_catalog1 = MagicMock()
-        mock_catalog1.datasets = ['https://example.org/dataset/1']
-
-        mock_catalog2 = MagicMock()
-        mock_catalog2.datasets = ['https://other.org/dataset/1']
-
         mock_dataset1 = Dataset(
             uri='https://example.org/dataset/1',
             title='Dataset 1',
@@ -364,8 +316,10 @@ class TestDatasetServiceGetAll:
         )
 
         mock_fdp_client.fetch_fdp.side_effect = [mock_fdp1, mock_fdp2]
-        mock_fdp_client.fetch_catalog.side_effect = [mock_catalog1, mock_catalog2]
-        mock_fdp_client.fetch_dataset.side_effect = [mock_dataset1, mock_dataset2]
+        mock_fdp_client.fetch_catalog_with_datasets.side_effect = [
+            [mock_dataset1],
+            [mock_dataset2],
+        ]
 
         service = DatasetService(mock_fdp_client)
         result = service.get_all_datasets([
