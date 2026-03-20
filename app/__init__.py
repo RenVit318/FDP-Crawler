@@ -1,6 +1,7 @@
 """Flask application factory for the Data Visiting PoC."""
 
 import logging
+import os
 from typing import Optional, Dict, Any
 
 from flask import Flask
@@ -77,6 +78,8 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
     from app.routes.request import request_bp
     from app.routes.auth import auth_bp
     from app.routes.sparql import sparql_bp
+    from app.routes.admin import admin_bp
+    from app.routes.dashboard import dashboard_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(fdp_bp)
@@ -84,6 +87,8 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
     app.register_blueprint(request_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(sparql_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(dashboard_bp)
 
     # Initialize session defaults
     @app.before_request
@@ -101,6 +106,14 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
             session['endpoint_credentials'] = {}
         if 'discovered_endpoints' not in session:
             session['discovered_endpoints'] = {}
+
+    # Ensure dashboard data directory exists
+    os.makedirs(os.path.join(app.root_path, 'data', 'dashboard'), exist_ok=True)
+
+    # Initialize dashboard scheduler (skip in testing)
+    if not app.config.get('TESTING'):
+        from app.services.dashboard_scheduler import init_scheduler
+        init_scheduler(app)
 
     # Security headers
     @app.after_request

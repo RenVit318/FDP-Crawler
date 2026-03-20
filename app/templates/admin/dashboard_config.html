@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Configuration - Admin{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('admin.dashboard') }}">Admin</a> &raquo; Dashboard Configuration
+</div>
+
+<h1>Statistics Dashboard Configuration</h1>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Refresh Status</span>
+        <form method="POST" action="{{ url_for('admin.dashboard_refresh') }}" style="display: inline;">
+            <button type="submit" class="btn btn-primary btn-sm">Refresh Now</button>
+        </form>
+    </div>
+    <div class="card-body">
+        {% if status.last_refresh %}
+        <p><strong>Last refresh:</strong> {{ status.last_refresh[:19] | replace('T', ' ') }} UTC</p>
+        {% else %}
+        <p><strong>Last refresh:</strong> Never</p>
+        {% endif %}
+
+        {% if status.discovered_endpoints is defined %}
+        <p><strong>Discovered endpoints:</strong> {{ status.discovered_endpoints }}</p>
+        {% endif %}
+
+        {% if status.refresh_in_progress %}
+        <p><span class="status-badge status-pending">Refresh in progress&hellip;</span></p>
+        {% endif %}
+
+        {% if status.errors %}
+        <div style="margin-top: 1rem;">
+            <strong>Recent errors:</strong>
+            <ul style="margin-top: 0.5rem; margin-left: 1.5rem;">
+                {% for err in status.errors[:10] %}
+                <li class="dataset-meta" style="color: var(--error-color);">{{ err }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Discovered SPARQL Endpoints</span>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 1rem;">
+            SPARQL endpoints are automatically discovered from the FAIR Data Points included in the
+            Humanitarian Data Space. The discovery runs daily alongside the dashboard refresh.
+        </p>
+
+        {% set discovered = config.endpoints | selectattr('discovered', 'defined') | selectattr('discovered') | list %}
+        {% set manual = config.endpoints | rejectattr('discovered', 'defined') | list + config.endpoints | selectattr('discovered', 'defined') | rejectattr('discovered') | list %}
+
+        {% if discovered %}
+        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Auto-discovered ({{ discovered|length }})</h3>
+        {% for ep in discovered %}
+        <div class="dataset-meta" style="padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);">
+            <span class="status-badge status-active" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">discovered</span>
+            <a href="{{ ep.url }}" target="_blank">{{ ep.url }}</a>
+            {% if ep.label and ep.label != ep.url %}<br><small>{{ ep.label }}</small>{% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="dataset-meta">No endpoints discovered yet. Click "Refresh Now" to trigger discovery.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Manual Endpoints</span>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 1rem;">
+            You can also add SPARQL endpoints manually. These will be queried alongside the
+            auto-discovered endpoints. Enter one endpoint per line in the format: <code>URL | Label</code>
+        </p>
+
+        <form method="POST" action="{{ url_for('admin.dashboard_config') }}">
+            <div class="form-group">
+                <label for="endpoints">Additional endpoints</label>
+                <textarea id="endpoints" name="endpoints" class="form-control"
+                    rows="4" placeholder="https://example.com/sparql | My Dataset">{{ endpoint_text }}</textarea>
+                <p class="form-hint">Format: <code>endpoint_url | label</code> (one per line). The label is optional.</p>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Manual Endpoints</button>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="border-top-color: var(--accent-color);">
+    <div class="card-header">
+        <span class="card-title" style="color: var(--accent-color);">Security Recommendation</span>
+    </div>
+    <div class="card-body">
+        <p>
+            The dashboard uses credentials from the server environment variables
+            (<code>DASHBOARD_SPARQL_USERNAME</code> / <code>DASHBOARD_SPARQL_PASSWORD</code>)
+            to authenticate with the SPARQL endpoints.
+        </p>
+        <p style="margin-top: 0.75rem;">
+            <strong>Best practice:</strong> Create a dedicated <code>dashboard-reader</code> role on each
+            AllegroGraph instance with the following restrictions:
+        </p>
+        <ul style="margin-top: 0.5rem; margin-left: 1.5rem; color: var(--text-secondary);">
+            <li>Read-only access (no SPARQL UPDATE permissions)</li>
+            <li>Limited to specific repositories or named graphs</li>
+            <li>Restricted to aggregate queries only where possible</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

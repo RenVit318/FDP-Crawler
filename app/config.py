@@ -22,7 +22,7 @@ class Config:
 
     # Default FDP endpoints to include for new sessions
     DEFAULT_FDPS: list = [
-        'https://fairdp.colo.ba.be',
+        'https://fairdp.eepa.be',
         'https://fdp.tangaza.ac.ke',
         'https://mutuinifdp.tail1aac55.ts.net',
         'https://aku.edu.et',
@@ -31,6 +31,13 @@ class Config:
 
     # SPARQL settings
     SPARQL_TIMEOUT: int = int(os.environ.get('SPARQL_TIMEOUT', 60))
+
+    # Dashboard settings
+    DASHBOARD_SPARQL_USERNAME: str = os.environ.get('DASHBOARD_SPARQL_USERNAME', '')
+    DASHBOARD_SPARQL_PASSWORD: str = os.environ.get('DASHBOARD_SPARQL_PASSWORD', '')
+    DASHBOARD_REFRESH_INTERVAL: int = int(os.environ.get('DASHBOARD_REFRESH_INTERVAL', 86400))
+    DASHBOARD_SPARQL_TIMEOUT: int = int(os.environ.get('DASHBOARD_SPARQL_TIMEOUT', 120))
+    DASHBOARD_REPO_NAME: str = os.environ.get('DASHBOARD_REPO_NAME', 'Dashboard')
 
     # Flask session settings
     SESSION_TYPE: str = 'filesystem'

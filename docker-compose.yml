@@ -4,12 +4,18 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     environment:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - FLASK_ENV=${FLASK_ENV:-production}
       - FDP_TIMEOUT=${FDP_TIMEOUT:-30}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DASHBOARD_SPARQL_USERNAME=${DASHBOARD_SPARQL_USERNAME:-}
+      - DASHBOARD_SPARQL_PASSWORD=${DASHBOARD_SPARQL_PASSWORD:-}
+      - DASHBOARD_REFRESH_INTERVAL=${DASHBOARD_REFRESH_INTERVAL:-86400}
+      - DASHBOARD_REPO_NAME=${DASHBOARD_REPO_NAME:-dashboard}
+    volumes:
+      - dashboard_data:/app/app/data/dashboard
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
@@ -17,3 +23,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+volumes:
+  dashboard_data:

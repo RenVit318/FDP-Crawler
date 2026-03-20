@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Humanitarian Data Space{% endblock %}
+
+{% block content %}
+<div style="background-color: #fff3cd; border: 2px solid #d4a017; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; text-align: center;">
+    <strong style="font-size: 1.1rem; letter-spacing: 0.05em; color: #856404;">PROOF OF CONCEPT VERSION - MOCK DATA</strong>
+</div>
+<h1>Aggregate Statistics</h1>
+
+{% set status = data.status %}
+{% set queries = data.queries %}
+{% set stats = queries.get('all_stats', {}) %}
+{% set agg = stats.get('aggregated', {}) %}
+{% set themes = data.get('themes', []) %}
+
+{% if status.last_refresh %}
+<p class="dataset-meta" style="margin-bottom: 1.5rem;">
+    Last updated: {{ status.last_refresh[:19] | replace('T', ' ') }} UTC
+    {% if status.refresh_in_progress %}
+    <span class="status-badge status-pending" style="margin-left: 0.5rem;">Updating&hellip;</span>
+    {% endif %}
+    {% if stats.successful_endpoints is defined %}
+    &mdash; {{ stats.successful_endpoints }} of {{ stats.total_endpoints }} facilities reporting
+    {% endif %}
+</p>
+{% endif %}
+
+{% if not agg %}
+<div class="card">
+    <div class="empty-state">
+        {% if status.refresh_in_progress %}
+        <div class="loading" style="width: 40px; height: 40px; margin: 0 auto 1rem;"></div>
+        <h3>Preparing statistics</h3>
+        <p>Aggregate data is being collected from the facilities. This may take a minute.</p>
+        {% elif not status.last_refresh %}
+        <h3>No statistics available yet</h3>
+        <p>The dashboard has not been configured with SPARQL endpoints yet. An administrator can set this up from the admin panel.</p>
+        {% else %}
+        <h3>No data available</h3>
+        <p>No aggregate statistics have been published by the facilities yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+
+{# ---- Scalar metrics as stat cards ---- #}
+{% set scalars = [] %}
+{% for metric_id, metric_data in agg.items() if metric_data.value is defined %}
+    {% set _ = scalars.append((metric_id, metric_data)) %}
+{% endfor %}
+
+{# Time range card #}
+{% set time_range = agg.get('time_range', {}) %}
+
+{% if scalars or time_range.dimensions is defined %}
+<div class="status-cards" style="margin-bottom: 2rem;">
+    {% for metric_id, metric_data in scalars %}
+    <div class="status-card" style="flex: 1; min-width: 200px;">
+        <div class="status-number">{{ "{:,}".format(metric_data.value) }}</div>
+        <div class="status-label">{{ metric_data.label }}</div>
+    </div>
+    {% endfor %}
+
+    {% if time_range.dimensions is defined %}
+    <div class="status-card" style="flex: 1; min-width: 200px;">
+        <div class="status-number">
+            {{ time_range.dimensions.get('earliest', '?') }}&ndash;{{ time_range.dimensions.get('latest', '?') }}
+        </div>
+        <div class="status-label">{{ time_range.get('label', 'Time Range') }}</div>
+    </div>
+    {% endif %}
+
+    {% if stats.successful_endpoints is defined %}
+    <div class="status-card" style="flex: 1; min-width: 200px;">
+        <div class="status-number">{{ stats.successful_endpoints }}</div>
+        <div class="status-label">Facilities Connected</div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ---- Dimensional metrics as charts ---- #}
+{% set chart_idx = namespace(n=0) %}
+{% set dimensional_metrics = ['country', 'language'] %}
+{% for metric_id in dimensional_metrics %}
+{% set metric_data = agg.get(metric_id) %}
+{% if metric_data and metric_data.dimensions is defined and metric_data.dimensions %}
+{% set chart_id = "chart_" ~ chart_idx.n %}
+{% set chart_idx.n = chart_idx.n + 1 %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">{{ metric_data.label }}</span>
+        <span class="dataset-meta">Aggregated across {{ stats.successful_endpoints }} facilit{{ 'y' if stats.successful_endpoints == 1 else 'ies' }}</span>
+    </div>
+    <div class="card-body">
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap; align-items: flex-start;">
+            <div style="flex: 1; min-width: 300px; max-width: 600px;">
+                <canvas id="{{ chart_id }}" height="250"></canvas>
+            </div>
+            <div style="flex: 0 0 auto; min-width: 200px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 0.5rem; border-bottom: 2px solid var(--border-color); font-weight: 600;">{{ metric_data.label }}</th>
+                            <th style="text-align: right; padding: 0.5rem; border-bottom: 2px solid var(--border-color); font-weight: 600;">Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dim_name, dim_value in metric_data.dimensions.items() | sort(attribute='1', reverse=true) %}
+                        <tr>
+                            <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">{{ dim_name }}</td>
+                            <td style="text-align: right; padding: 0.5rem; border-bottom: 1px solid var(--border-color); font-weight: 600; color: var(--primary-color);">{{ "{:,}".format(dim_value) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Per-facility breakdown #}
+{% if stats.endpoints is defined %}
+{% set has_per_facility = [] %}
+{% for ep_url, ep_data in stats.endpoints.items() if ep_data.success and ep_data.data %}
+    {% if metric_id in ep_data.data and ep_data.data[metric_id].dimensions is defined %}
+        {% set _ = has_per_facility.append((ep_data.label, ep_data.data[metric_id].dimensions)) %}
+    {% endif %}
+{% endfor %}
+
+{% if has_per_facility | length > 1 %}
+{% set facility_chart_id = "facility_chart_" ~ chart_idx.n %}
+{% set chart_idx.n = chart_idx.n + 1 %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">{{ metric_data.label }} &mdash; Per Facility</span>
+    </div>
+    <div class="card-body">
+        <div style="max-width: 700px;">
+            <canvas id="{{ facility_chart_id }}" height="300"></canvas>
+        </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var facilityData = {{ has_per_facility | tojson }};
+            var dimKeys = [];
+            facilityData.forEach(function(f) {
+                Object.keys(f[1]).forEach(function(d) {
+                    if (dimKeys.indexOf(d) === -1) dimKeys.push(d);
+                });
+            });
+            var colorPalette = ['#da931e', '#1d3182', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#be185d'];
+            var datasets = dimKeys.map(function(dim, i) {
+                return {
+                    label: dim,
+                    data: facilityData.map(function(f) { return f[1][dim] || 0; }),
+                    backgroundColor: colorPalette[i % colorPalette.length],
+                    borderRadius: 4,
+                };
+            });
+            new Chart(document.getElementById('{{ facility_chart_id }}'), {
+                type: 'bar',
+                data: { labels: facilityData.map(function(f) { return f[0]; }), datasets: datasets },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        });
+        </script>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% endif %}
+{% endfor %}
+
+{# ---- Themes from FAIR Data Points ---- #}
+{% if themes %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Research Themes</span>
+        <span class="dataset-meta">Extracted from FAIR Data Points</span>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 1rem;">Themes describing the datasets available across all connected FAIR Data Points.</p>
+        <div class="dataset-themes" style="gap: 0.75rem;">
+            {% for theme in themes %}
+            <span class="theme-tag" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                {{ theme.label }}
+                <span style="opacity: 0.7; margin-left: 0.25rem;">({{ theme.count }})</span>
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ---- Endpoint health note ---- #}
+{% if stats.endpoints is defined %}
+{% set failed = [] %}
+{% for ep_url, ep_data in stats.endpoints.items() if not ep_data.success %}
+    {% set _ = failed.append(ep_data) %}
+{% endfor %}
+{% if failed %}
+<div class="card" style="border-top-color: var(--warning-color);">
+    <div class="card-body">
+        <p style="color: var(--warning-color); margin: 0;">
+            <strong>Note:</strong> {{ failed|length }} facility endpoint(s) were unavailable during the last refresh. Displayed statistics may be incomplete.
+        </p>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var colorPalette = ['#da931e', '#1d3182', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#be185d'];
+
+    {% set chart_idx2 = namespace(n=0) %}
+    {% for metric_id in dimensional_metrics %}
+    {% set metric_data = agg.get(metric_id) %}
+    {% if metric_data and metric_data.dimensions is defined and metric_data.dimensions %}
+    {% set chart_id = "chart_" ~ chart_idx2.n %}
+    {% set chart_idx2.n = chart_idx2.n + 1 %}
+    (function() {
+        var labels = {{ metric_data.dimensions.keys() | sort(reverse=true) | list | tojson }};
+        var values = [];
+        var sorted = {{ metric_data.dimensions | dictsort(by='value', reverse=true) | tojson }};
+        labels = sorted.map(function(x) { return x[0]; });
+        values = sorted.map(function(x) { return x[1]; });
+        var colors = labels.map(function(_, i) { return colorPalette[i % colorPalette.length]; });
+
+        new Chart(document.getElementById('{{ chart_id }}'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '{{ metric_data.label }}',
+                    data: values,
+                    backgroundColor: colors,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: labels.length > 5 ? 'y' : 'x',
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function(ctx) { return ctx.parsed[labels.length > 5 ? 'x' : 'y'].toLocaleString(); } } }
+                },
+                scales: {
+                    x: { grid: { display: labels.length > 5 }, beginAtZero: true, ticks: { precision: 0 } },
+                    y: { grid: { display: labels.length <= 5 ? false : true }, beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    })();
+    {% endif %}
+    {% endfor %}
+});
+</script>
+{% endblock %}
