@@ -159,4 +159,5 @@ class Dataset:
             'keywords': self.keywords,
             'contact_point': self.contact_point.to_dict() if self.contact_point else None,
             'landing_page': self.landing_page,
+            'distribution_count': len(self.distributions),
         }

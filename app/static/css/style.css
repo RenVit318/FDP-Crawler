@@ -360,6 +360,13 @@ section h2 {
     color: var(--text-secondary);
 }
 
+.status-hint {
+    font-size: 0.75rem;
+    font-weight: 400;
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
 /* Buttons - EEPA pill style */
 .btn {
     display: inline-block;

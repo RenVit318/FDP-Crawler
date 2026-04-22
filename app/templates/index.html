@@ -53,6 +53,18 @@
             <div class="status-label">FDPs Configured</div>
         </div>
         <div class="status-card">
+            {% if distribution_count is none %}
+            <div class="status-number">&mdash;</div>
+            <div class="status-label">
+                Distributions
+                <div class="status-hint"><a href="{{ url_for('datasets.browse') }}">Browse datasets</a> to count</div>
+            </div>
+            {% else %}
+            <div class="status-number">{{ distribution_count }}</div>
+            <div class="status-label">Distributions</div>
+            {% endif %}
+        </div>
+        <div class="status-card">
             <div class="status-number">{{ basket_count }}</div>
             <div class="status-label">Datasets in Basket</div>
         </div>

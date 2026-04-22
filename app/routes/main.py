@@ -12,12 +12,19 @@ def index():
     """Render the landing page."""
     fdp_count = len(session.get('fdps', {}))
     basket_count = len(session.get('basket', []))
+    datasets_cache = session.get('datasets_cache', [])
+    # None means "not fetched yet this session" so the template shows an em dash.
+    distribution_count = (
+        sum(ds.get('distribution_count', 0) for ds in datasets_cache)
+        if datasets_cache else None
+    )
     content = get_page_content('home')
 
     return render_template(
         'index.html',
         fdp_count=fdp_count,
         basket_count=basket_count,
+        distribution_count=distribution_count,
         page=content,
     )
 
