@@ -2,11 +2,41 @@
 
 {% block title %}SPARQL Editor - {{ site.name }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/yasqe@4/dist/yasqe.min.css">
+<style>
+    .yasqe {
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+    }
+    .yasqe .CodeMirror {
+        height: 320px;
+    }
+    .preset-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    .preset-bar label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        color: var(--text-muted, #666);
+    }
+    .preset-bar select {
+        flex: 1;
+        max-width: 360px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1>SPARQL Query Editor</h1>
 
 <div class="card">
-    <form method="POST" action="{{ url_for('sparql.query') }}">
+    <form id="sparql-form" method="POST" action="{{ url_for('sparql.query') }}">
         <div class="card-body">
             <h3 class="form-section-title">Select Endpoints</h3>
             <p class="form-hint" style="margin-bottom: 1rem;">
@@ -32,21 +62,27 @@
             </div>
 
             <h3 class="form-section-title">SPARQL Query</h3>
-            <div class="form-group">
-                <textarea id="query" name="query" class="form-control"
-                          rows="15"
-                          style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.9rem;"
-                          placeholder="PREFIX ex: <http://example.org/>
 
-SELECT ?subject ?predicate ?object
-WHERE {
-    ?subject ?predicate ?object
-}
-LIMIT 100">{{ query_text }}</textarea>
-                <p class="form-hint">
-                    Enter your SPARQL query. The same query will be executed against all selected endpoints.
-                </p>
+            <div class="preset-bar">
+                <label for="preset-select">Preset queries:</label>
+                <select id="preset-select" class="form-control">
+                    <option value="">-- load a preset --</option>
+                    <option value="select_all">Select everything (LIMIT 50)</option>
+                    <option value="list_classes">List all classes (LIMIT 50)</option>
+                    <option value="list_predicates">List all predicates (LIMIT 50)</option>
+                    <option value="list_subjects">List all subjects (LIMIT 50)</option>
+                    <option value="count_triples">Count all triples</option>
+                    <option value="describe_subject">Describe a subject (fill in URI)</option>
+                </select>
             </div>
+
+            <div id="yasqe-container"></div>
+            <textarea id="query" name="query" style="display:none">{{ query_text }}</textarea>
+
+            <p class="form-hint" style="margin-top: 0.5rem;">
+                The same query runs against all selected endpoints.
+                Use <code>LIMIT</code> to keep results manageable.
+            </p>
         </div>
 
         <div class="card-footer">
@@ -55,39 +91,61 @@ LIMIT 100">{{ query_text }}</textarea>
         </div>
     </form>
 </div>
+{% endblock %}
 
-<div class="card">
-    <div class="card-header">
-        <span class="card-title">Query Tips</span>
-    </div>
-    <div class="card-body">
-        <ul style="margin: 0; padding-left: 1.5rem;">
-            <li style="margin-bottom: 0.5rem;">Use <code>LIMIT</code> to restrict result size</li>
-            <li style="margin-bottom: 0.5rem;">Start with simple queries to test connectivity</li>
-            <li style="margin-bottom: 0.5rem;">Results from each endpoint will be displayed separately</li>
-            <li style="margin-bottom: 0.5rem;">Failed endpoints will show error messages</li>
-            <li>Queries support standard SPARQL 1.1 syntax</li>
-        </ul>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <span class="card-title">Example Queries</span>
-    </div>
-    <div class="card-body">
-        <h4 style="margin-bottom: 0.5rem;">List all classes:</h4>
-        <pre style="background: var(--background); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem;">SELECT DISTINCT ?class
+{% block scripts %}
+<script src="https://unpkg.com/yasqe@4/dist/yasqe.bundled.min.js"></script>
+<script>
+    const PRESETS = {
+        select_all: `SELECT ?subject ?predicate ?object
+WHERE {
+    ?subject ?predicate ?object
+}
+LIMIT 50`,
+        list_classes: `SELECT DISTINCT ?class
 WHERE {
     ?s a ?class
 }
-LIMIT 50</pre>
-
-        <h4 style="margin-bottom: 0.5rem;">Count triples:</h4>
-        <pre style="background: var(--background); padding: 1rem; border-radius: 0.5rem; overflow-x: auto;">SELECT (COUNT(*) AS ?count)
+LIMIT 50`,
+        list_predicates: `SELECT DISTINCT ?predicate
+WHERE {
+    ?s ?predicate ?o
+}
+LIMIT 50`,
+        list_subjects: `SELECT DISTINCT ?subject
+WHERE {
+    ?subject ?p ?o
+}
+LIMIT 50`,
+        count_triples: `SELECT (COUNT(*) AS ?count)
 WHERE {
     ?s ?p ?o
-}</pre>
-    </div>
-</div>
+}`,
+        describe_subject: `SELECT ?predicate ?object
+WHERE {
+    <http://example.org/your-subject-uri> ?predicate ?object
+}`
+    };
+
+    const initialQuery = document.getElementById('query').value.trim()
+        || PRESETS.select_all;
+
+    const yasqe = new YASQE(document.getElementById('yasqe-container'), {
+        sparql: { showQueryButton: false },
+        persistencyIdentifier: null
+    });
+    yasqe.setValue(initialQuery);
+
+    document.getElementById('preset-select').addEventListener('change', function () {
+        const key = this.value;
+        if (key && PRESETS[key]) {
+            yasqe.setValue(PRESETS[key]);
+        }
+        this.value = '';
+    });
+
+    document.getElementById('sparql-form').addEventListener('submit', function () {
+        document.getElementById('query').value = yasqe.getValue();
+    });
+</script>
 {% endblock %}

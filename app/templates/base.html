@@ -6,6 +6,7 @@
     <title>{% block title %}{{ site.name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('dataspace_static.static', filename='css/theme.css') }}">
+    {% block head %}{% endblock %}
 </head>
 <body>
     <header>
@@ -87,5 +88,6 @@
     </footer>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>
