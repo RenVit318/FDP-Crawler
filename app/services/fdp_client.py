@@ -569,7 +569,7 @@ class FDPClient:
         for prop in [DCAT.endpointURL, DCAT.accessURL]:
             for url_node in graph.objects(node, prop):
                 url_str = str(url_node).lower()
-                if any(hint in url_str for hint in ['sparql', 'repositories', 'allegrograph']):
+                if any(hint in url_str for hint in ['sparql', 'repositories', 'allegrograph', 'agraph']):
                     return True
 
         return False
@@ -592,7 +592,7 @@ class FDPClient:
         # Fallback: use accessURL if it looks like a SPARQL endpoint
         for url in graph.objects(node, DCAT.accessURL):
             url_str = str(url).lower()
-            if any(hint in url_str for hint in ['sparql', 'repositories', 'allegrograph']):
+            if any(hint in url_str for hint in ['sparql', 'repositories', 'allegrograph', 'agraph']):
                 return str(url)
 
         return None

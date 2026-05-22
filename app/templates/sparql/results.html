@@ -2,6 +2,97 @@
 
 {% block title %}Query Results - {{ site.name }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.9/styles/vis-network.min.css">
+<style>
+    .view-toggle {
+        display: flex;
+        gap: 0.4rem;
+        margin-bottom: 1rem;
+    }
+    .view-toggle button {
+        padding: 0.35rem 1rem;
+        font-size: 0.8rem;
+        border: 1px solid var(--border-color);
+        background: var(--background);
+        border-radius: 0.375rem;
+        cursor: pointer;
+        color: var(--text-muted, #666);
+    }
+    .view-toggle button.active {
+        background: var(--primary-color);
+        color: #fff;
+        border-color: var(--primary-color);
+    }
+    .graph-container {
+        width: 100%;
+        height: 480px;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        background: var(--background);
+        display: none;
+    }
+    .graph-no-spo {
+        display: none;
+        padding: 2rem;
+        text-align: center;
+        color: var(--text-muted, #666);
+        font-size: 0.875rem;
+    }
+    .graph-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        align-items: center;
+    }
+    .legend-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.78rem;
+        font-weight: 500;
+    }
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .graph-hint {
+        font-size: 0.8rem;
+        color: var(--text-muted, #666);
+        margin-top: 0.5rem;
+    }
+    .graph-fullscreen-btn {
+        margin-left: auto;
+        padding: 0.25rem 0.7rem;
+        font-size: 0.78rem;
+        border: 1px solid var(--border-color);
+        background: var(--background);
+        border-radius: 0.375rem;
+        cursor: pointer;
+        color: var(--text-muted, #666);
+        flex-shrink: 0;
+    }
+    .graph-fullscreen-btn:hover {
+        background: var(--primary-color);
+        color: #fff;
+        border-color: var(--primary-color);
+    }
+    .graph-container:fullscreen,
+    #federation-graph:fullscreen {
+        height: 100vh !important;
+        width: 100vw !important;
+        border-radius: 0 !important;
+        border: none !important;
+        background: var(--background) !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1>Query Results</h1>
 
@@ -37,6 +128,21 @@
     </div>
 </div>
 
+{% if result.successful_endpoints >= 2 %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Federation Graph</span>
+        <span class="dataset-meta">Combined view across {{ result.successful_endpoints }} endpoints</span>
+        <button class="graph-fullscreen-btn" onclick="toggleGraphFullscreen('federation-graph', 'federation')">&#x26F6; Fullscreen</button>
+    </div>
+    <div class="card-body">
+        <div id="federation-legend" class="graph-legend"></div>
+        <div id="federation-graph" style="width:100%;height:560px;border:1px solid var(--border-color);border-radius:0.5rem;background:var(--background);"></div>
+        <p class="graph-hint" id="federation-hint"></p>
+    </div>
+</div>
+{% endif %}
+
 {% for ep_result in result.endpoint_results %}
 {% set ep_idx = loop.index0 %}
 <div class="card" data-endpoint-idx="{{ ep_idx }}">
@@ -57,68 +163,81 @@
         </div>
 
         {% if ep_result.success and ep_result.bindings %}
-        <div style="margin-bottom: 0.5rem;">
-            <label style="cursor: pointer; font-size: 0.875rem;">
-                <input type="checkbox" class="select-all-ep" data-endpoint="{{ ep_idx }}" checked>
-                Select all
-            </label>
-        </div>
-        <div style="overflow-x: auto;">
-            <table class="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                <thead>
-                    <tr>
-                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); background: var(--background); width: 2rem;"></th>
-                    {% for var in ep_result.variables %}
-                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); background: var(--background); text-align: left; font-weight: 600;">
-                            ?{{ var }}
-                        </th>
-                    {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                {% for row in ep_result.bindings %}
-                    <tr>
-                        <td style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: center;">
-                            <input type="checkbox" class="row-check" data-endpoint="{{ ep_idx }}" data-row="{{ loop.index0 }}" checked>
-                        </td>
-                    {% for var in ep_result.variables %}
-                        <td style="padding: 0.75rem; border: 1px solid var(--border-color); vertical-align: top;">
-                            {% if row[var] %}
-                                {% if row[var].type == 'uri' %}
-                                    <a href="{{ row[var].value }}" target="_blank" rel="noopener"
-                                       style="word-break: break-all;">{{ row[var].value }}</a>
-                                {% elif row[var].type == 'literal' %}
-                                    <span style="word-break: break-word;">{{ row[var].value }}</span>
-                                    {% if row[var]['xml:lang'] %}
-                                        <span class="dataset-meta">@{{ row[var]['xml:lang'] }}</span>
-                                    {% elif row[var].datatype %}
-                                        <span class="dataset-meta">^^{{ row[var].datatype.split('#')[-1] }}</span>
-                                    {% endif %}
-                                {% else %}
-                                    {{ row[var].value }}
-                                {% endif %}
-                            {% else %}
-                                <span class="dataset-meta">(unbound)</span>
-                            {% endif %}
-                        </td>
-                    {% endfor %}
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+
+        <div class="view-toggle">
+            <button class="active" onclick="showTable({{ ep_idx }}, this)">Table</button>
+            <button onclick="showGraph({{ ep_idx }}, this)">Graph</button>
+            <button id="fs-btn-{{ ep_idx }}" class="graph-fullscreen-btn" style="display:none;" onclick="toggleGraphFullscreen('graph-view-{{ ep_idx }}', {{ ep_idx }})">&#x26F6; Fullscreen</button>
         </div>
 
-        {% if ep_result.bindings|length >= 100 %}
-        <p class="form-hint" style="margin-top: 1rem;">
-            Showing {{ ep_result.bindings|length }} results. Use LIMIT in your query to control result size.
-        </p>
-        {% endif %}
+        <div id="table-view-{{ ep_idx }}">
+            <div style="margin-bottom: 0.5rem;">
+                <label style="cursor: pointer; font-size: 0.875rem;">
+                    <input type="checkbox" class="select-all-ep" data-endpoint="{{ ep_idx }}" checked>
+                    Select all
+                </label>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color); background: var(--background); width: 2rem;"></th>
+                        {% for var in ep_result.variables %}
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color); background: var(--background); text-align: left; font-weight: 600;">
+                                ?{{ var }}
+                            </th>
+                        {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in ep_result.bindings %}
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: center;">
+                                <input type="checkbox" class="row-check" data-endpoint="{{ ep_idx }}" data-row="{{ loop.index0 }}" checked>
+                            </td>
+                        {% for var in ep_result.variables %}
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color); vertical-align: top;">
+                                {% if row[var] %}
+                                    {% if row[var].type == 'uri' %}
+                                        <a href="{{ row[var].value }}" target="_blank" rel="noopener"
+                                           style="word-break: break-all;">{{ row[var].value }}</a>
+                                    {% elif row[var].type == 'literal' %}
+                                        <span style="word-break: break-word;">{{ row[var].value }}</span>
+                                        {% if row[var]['xml:lang'] %}
+                                            <span class="dataset-meta">@{{ row[var]['xml:lang'] }}</span>
+                                        {% elif row[var].datatype %}
+                                            <span class="dataset-meta">^^{{ row[var].datatype.split('#')[-1] }}</span>
+                                        {% endif %}
+                                    {% else %}
+                                        {{ row[var].value }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="dataset-meta">(unbound)</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if ep_result.bindings|length >= 100 %}
+            <p class="form-hint" style="margin-top: 1rem;">
+                Showing {{ ep_result.bindings|length }} results. Use LIMIT in your query to control result size.
+            </p>
+            {% endif %}
+        </div>
+
+        <div id="graph-legend-{{ ep_idx }}" class="graph-legend" style="display:none;"></div>
+        <div id="graph-view-{{ ep_idx }}" class="graph-container"></div>
+        <div id="graph-no-spo-{{ ep_idx }}" class="graph-no-spo">
+            Graph view requires <code>?subject</code> / <code>?predicate</code> / <code>?object</code> (or <code>?s</code> / <code>?p</code> / <code>?o</code>) variables.
+        </div>
 
         {% elif ep_result.success %}
         <div class="empty-state" style="padding: 2rem;">
             <p>No results returned from this endpoint.</p>
         </div>
-
         {% else %}
         <div class="flash flash-error" style="margin: 0;">
             <strong>Error:</strong> {{ ep_result.error_message }}
@@ -134,8 +253,276 @@
     <a href="{{ url_for('sparql.index') }}" class="btn btn-secondary">Back to SPARQL</a>
 </div>
 
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <script>
 var resultData = {{ result | tojson }};
+var renderedGraphs = {};
+
+// Distinct colors per endpoint index
+var ENDPOINT_COLORS = [
+    { bg: '#4e79b5', border: '#2d5a8e', font: '#fff' },
+    { bg: '#e06c5a', border: '#b5402a', font: '#fff' },
+    { bg: '#3a9a8a', border: '#1d6b5e', font: '#fff' },
+    { bg: '#8e6bbf', border: '#5e3d99', font: '#fff' },
+    { bg: '#e0963a', border: '#b56a10', font: '#fff' },
+];
+var BRIDGE_COLOR  = { bg: '#f5c518', border: '#8a6d00', font: '#333' };
+var LITERAL_COLOR = { bg: '#efefef', border: '#aaa',    font: '#333' };
+
+function epColor(epIdx) {
+    return ENDPOINT_COLORS[epIdx % ENDPOINT_COLORS.length];
+}
+
+function localName(uri) {
+    if (!uri) return '';
+    var cut = Math.max(uri.lastIndexOf('#'), uri.lastIndexOf('/'));
+    var local = cut >= 0 ? uri.slice(cut + 1) : uri;
+    return local.length > 38 ? local.slice(0, 36) + '…' : local;
+}
+
+function findVar(vars, name) {
+    for (var i = 0; i < vars.length; i++) {
+        if (vars[i].toLowerCase() === name) return vars[i];
+    }
+    return null;
+}
+
+// Pre-compute which values (URIs or literals) appear in 2+ endpoints (bridge nodes)
+var bridgeUris = (function() {
+    var uriEpSets = {}, litEpSets = {};
+    resultData.endpoint_results.forEach(function(ep, epIdx) {
+        if (!ep.success || !ep.bindings) return;
+        var sVar = findVar(ep.variables, 's') || findVar(ep.variables, 'subject');
+        var oVar = findVar(ep.variables, 'o') || findVar(ep.variables, 'object');
+        ep.bindings.forEach(function(row) {
+            [sVar, oVar].forEach(function(v) {
+                if (!v) return;
+                var b = row[v];
+                if (!b) return;
+                if (b.type === 'uri') {
+                    if (!uriEpSets[b.value]) uriEpSets[b.value] = new Set();
+                    uriEpSets[b.value].add(epIdx);
+                } else if (b.type === 'literal') {
+                    if (!litEpSets[b.value]) litEpSets[b.value] = new Set();
+                    litEpSets[b.value].add(epIdx);
+                }
+            });
+        });
+    });
+    var bridges = new Set();
+    Object.keys(uriEpSets).forEach(function(uri) {
+        if (uriEpSets[uri].size >= 2) bridges.add(uri);
+    });
+    Object.keys(litEpSets).forEach(function(val) {
+        if (litEpSets[val].size >= 2) bridges.add(val);
+    });
+    return bridges;
+}());
+
+function makeVisNode(binding, epIdx, id) {
+    var isBridge = bridgeUris.has(binding.value);
+    var isLit    = binding.type === 'literal';
+    var c = isBridge ? BRIDGE_COLOR : epColor(epIdx);
+    var label = binding.type === 'uri' ? localName(binding.value) : binding.value;
+    if (label.length > 38) label = label.slice(0, 36) + '…';
+    return {
+        id: id,
+        label: label,
+        title: binding.value,
+        shape: isLit ? 'box' : 'ellipse',
+        color: { background: c.bg, border: c.border,
+                 highlight: { background: c.bg, border: c.border } },
+        borderWidth: isBridge ? 3 : 1,
+        font: { color: c.font, size: 12 },
+    };
+}
+
+function buildGraph(endpointIndices) {
+    var nodeMap = {}, edges = [], nodeId = 0;
+    endpointIndices.forEach(function(epIdx) {
+        var ep = resultData.endpoint_results[epIdx];
+        var sVar = findVar(ep.variables, 's') || findVar(ep.variables, 'subject');
+        var pVar = findVar(ep.variables, 'p') || findVar(ep.variables, 'predicate');
+        var oVar = findVar(ep.variables, 'o') || findVar(ep.variables, 'object');
+        if (!sVar || !pVar || !oVar) return;
+        ep.bindings.forEach(function(row) {
+            var s = row[sVar], p = row[pVar], o = row[oVar];
+            if (!s || !p || !o) return;
+            var sk = s.type + ':' + s.value;
+            var ok = o.type + ':' + o.value;
+            if (!nodeMap[sk]) nodeMap[sk] = makeVisNode(s, epIdx, nodeId++);
+            if (!nodeMap[ok]) nodeMap[ok] = makeVisNode(o, epIdx, nodeId++);
+            var edgeLabel = p.type === 'uri' ? localName(p.value) : p.value;
+            if (edgeLabel.length > 28) edgeLabel = edgeLabel.slice(0, 26) + '…';
+            edges.push({ from: nodeMap[sk].id, to: nodeMap[ok].id,
+                         label: edgeLabel, title: p.value,
+                         arrows: 'to', font: { size: 10, align: 'middle' },
+                         color: { color: '#bbb' } });
+        });
+    });
+    return { nodes: Object.values(nodeMap), edges: edges };
+}
+
+function spawnNetwork(container, nodes, edges, iterations) {
+    return new vis.Network(container,
+        { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
+        {
+            layout: { improvedLayout: true },
+            physics: {
+                stabilization: { iterations: iterations || 150 },
+                barnesHut: { gravitationalConstant: -4000, springLength: 130 }
+            },
+            interaction: { hover: true, tooltipDelay: 80 },
+            edges: { smooth: { type: 'dynamic' } }
+        }
+    );
+}
+
+function buildLegend(el, endpointIndices, bridgeCount) {
+    el.innerHTML = '';
+    if (bridgeCount > 0) {
+        el.insertAdjacentHTML('beforeend',
+            '<span class="legend-chip" style="background:' + BRIDGE_COLOR.bg + ';color:' + BRIDGE_COLOR.font + ';border:2px solid ' + BRIDGE_COLOR.border + ';">' +
+            '<span class="legend-dot" style="background:' + BRIDGE_COLOR.bg + ';border:2px solid ' + BRIDGE_COLOR.border + ';"></span>' +
+            'Bridge node (' + bridgeCount + ')</span>');
+    }
+    endpointIndices.forEach(function(epIdx) {
+        var ep = resultData.endpoint_results[epIdx];
+        var c = epColor(epIdx);
+        el.insertAdjacentHTML('beforeend',
+            '<span class="legend-chip" style="background:' + c.bg + ';color:' + c.font + ';">' +
+            '<span class="legend-dot" style="background:' + c.bg + ';"></span>' +
+            (ep.fdp_title || 'Endpoint ' + epIdx) + '</span>');
+    });
+    if (bridgeCount === 0 && endpointIndices.length > 1) {
+        el.insertAdjacentHTML('beforeend',
+            '<span style="font-size:0.78rem;color:var(--text-muted,#888);">No shared URIs found between endpoints.</span>');
+    }
+    el.insertAdjacentHTML('beforeend',
+        '<span style="font-size:0.78rem;color:var(--text-muted,#888);margin-left:auto;">' +
+        '&#9711; URI &nbsp;&nbsp; &#9633; Literal &nbsp;&nbsp; &#11835; shared across endpoints</span>');
+}
+
+// Federation graph (rendered on page load if present)
+(function() {
+    var fedContainer = document.getElementById('federation-graph');
+    if (!fedContainer) return;
+
+    var spoIndices = [];
+    resultData.endpoint_results.forEach(function(ep, i) {
+        if (!ep.success || !ep.bindings || !ep.bindings.length) return;
+        var sVar = findVar(ep.variables, 's') || findVar(ep.variables, 'subject');
+        var pVar = findVar(ep.variables, 'p') || findVar(ep.variables, 'predicate');
+        var oVar = findVar(ep.variables, 'o') || findVar(ep.variables, 'object');
+        if (sVar && pVar && oVar) spoIndices.push(i);
+    });
+
+    var hint = document.getElementById('federation-hint');
+    if (spoIndices.length < 2) {
+        hint.textContent = 'Federation graph requires at least 2 endpoints returning ?s ?p ?o variables.';
+        fedContainer.style.display = 'none';
+        return;
+    }
+
+    var data = buildGraph(spoIndices);
+    var bridgeCount = data.nodes.filter(function(n) { return n.borderWidth === 3; }).length;
+    buildLegend(document.getElementById('federation-legend'), spoIndices, bridgeCount);
+
+    if (bridgeCount > 0) {
+        hint.textContent = bridgeCount + ' bridge node' + (bridgeCount > 1 ? 's' : '') +
+            ' (gold) link data across endpoints — these are the cross-dataspace connections.';
+    } else {
+        hint.textContent = 'No URIs are shared between endpoints in these results.';
+    }
+
+    renderedGraphs['federation'] = spawnNetwork(fedContainer, data.nodes, data.edges, 200);
+}());
+
+// Per-endpoint toggle
+function showTable(epIdx, btn) {
+    document.getElementById('table-view-' + epIdx).style.display = '';
+    document.getElementById('graph-legend-' + epIdx).style.display = 'none';
+    document.getElementById('graph-view-' + epIdx).style.display = 'none';
+    document.getElementById('graph-no-spo-' + epIdx).style.display = 'none';
+    var fsBtn = document.getElementById('fs-btn-' + epIdx);
+    if (fsBtn) fsBtn.style.display = 'none';
+    setActiveToggle(btn);
+}
+
+function showGraph(epIdx, btn) {
+    var ep = resultData.endpoint_results[epIdx];
+    var sVar = findVar(ep.variables, 's') || findVar(ep.variables, 'subject');
+    var pVar = findVar(ep.variables, 'p') || findVar(ep.variables, 'predicate');
+    var oVar = findVar(ep.variables, 'o') || findVar(ep.variables, 'object');
+
+    document.getElementById('table-view-' + epIdx).style.display = 'none';
+    setActiveToggle(btn);
+
+    if (!sVar || !pVar || !oVar) {
+        document.getElementById('graph-view-' + epIdx).style.display = 'none';
+        document.getElementById('graph-no-spo-' + epIdx).style.display = 'block';
+        var fsBtn = document.getElementById('fs-btn-' + epIdx);
+        if (fsBtn) fsBtn.style.display = 'none';
+        return;
+    }
+
+    document.getElementById('graph-no-spo-' + epIdx).style.display = 'none';
+    document.getElementById('graph-legend-' + epIdx).style.display = 'flex';
+    var container = document.getElementById('graph-view-' + epIdx);
+    container.style.display = 'block';
+    var fsBtn = document.getElementById('fs-btn-' + epIdx);
+    if (fsBtn) fsBtn.style.display = '';
+
+    if (renderedGraphs[epIdx]) return;
+
+    var data = buildGraph([epIdx]);
+    var bridgeCount = data.nodes.filter(function(n) { return n.borderWidth === 3; }).length;
+    buildLegend(document.getElementById('graph-legend-' + epIdx), [epIdx], bridgeCount);
+    renderedGraphs[epIdx] = spawnNetwork(container, data.nodes, data.edges, 150);
+}
+
+function toggleGraphFullscreen(containerId, networkKey) {
+    var el = document.getElementById(containerId);
+    if (!document.fullscreenElement) {
+        el.requestFullscreen().then(function() {
+            el.style.height = '100vh';
+            if (renderedGraphs[networkKey]) {
+                setTimeout(function() {
+                    renderedGraphs[networkKey].redraw();
+                    renderedGraphs[networkKey].fit();
+                }, 80);
+            }
+        });
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+document.addEventListener('fullscreenchange', function() {
+    if (!document.fullscreenElement) {
+        // Restore heights on exit
+        document.querySelectorAll('.graph-container').forEach(function(el) {
+            el.style.height = '';
+        });
+        var fedEl = document.getElementById('federation-graph');
+        if (fedEl) fedEl.style.height = '560px';
+        // Redraw all rendered graphs so they refit the restored size
+        Object.keys(renderedGraphs).forEach(function(k) {
+            if (renderedGraphs[k]) {
+                setTimeout(function() {
+                    renderedGraphs[k] && renderedGraphs[k].redraw();
+                }, 80);
+            }
+        });
+    }
+});
+
+function setActiveToggle(activeBtn) {
+    activeBtn.closest('.view-toggle').querySelectorAll('button').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    activeBtn.classList.add('active');
+}
 
 // Select-all toggles
 document.querySelectorAll('.select-all-ep').forEach(function(toggle) {
@@ -150,15 +537,14 @@ document.querySelectorAll('.row-check').forEach(function(cb) {
     cb.addEventListener('change', function() {
         var epIdx = this.dataset.endpoint;
         var all = document.querySelectorAll('.row-check[data-endpoint="' + epIdx + '"]');
-        var toggle = document.querySelector('.select-all-ep[data-endpoint="' + epIdx + '"]');
-        if (toggle) toggle.checked = Array.from(all).every(function(c) { return c.checked; });
+        var tog = document.querySelector('.select-all-ep[data-endpoint="' + epIdx + '"]');
+        if (tog) tog.checked = Array.from(all).every(function(c) { return c.checked; });
     });
 });
 
 function escapeTTL(s) {
     return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
-
 function valueToTTL(b) {
     if (!b) return null;
     if (b.type === 'uri') return '<' + b.value + '>';
@@ -167,55 +553,37 @@ function valueToTTL(b) {
     else if (b.datatype) lit += '^^<' + b.datatype + '>';
     return lit;
 }
-
 function isSPO(vars) {
     var v = vars.map(function(x) { return x.toLowerCase(); });
-    return v.indexOf('s') !== -1 && v.indexOf('p') !== -1 && v.indexOf('o') !== -1;
-}
-
-function findVar(vars, name) {
-    for (var i = 0; i < vars.length; i++) {
-        if (vars[i].toLowerCase() === name) return vars[i];
-    }
-    return null;
+    return (v.indexOf('s') !== -1 || v.indexOf('subject') !== -1)
+        && (v.indexOf('p') !== -1 || v.indexOf('predicate') !== -1)
+        && (v.indexOf('o') !== -1 || v.indexOf('object') !== -1);
 }
 
 function downloadTTL() {
     var lines = ['@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .', ''];
     var hasTriples = false;
-
     resultData.endpoint_results.forEach(function(ep, epIdx) {
         if (!ep.success || !ep.bindings) return;
         var vars = ep.variables;
-        var spoMode = isSPO(vars);
-        var sVar = findVar(vars, 's');
-        var pVar = findVar(vars, 'p');
-        var oVar = findVar(vars, 'o');
-
+        var sVar = findVar(vars, 's') || findVar(vars, 'subject');
+        var pVar = findVar(vars, 'p') || findVar(vars, 'predicate');
+        var oVar = findVar(vars, 'o') || findVar(vars, 'object');
         ep.bindings.forEach(function(row, rowIdx) {
             var cb = document.querySelector('.row-check[data-endpoint="' + epIdx + '"][data-row="' + rowIdx + '"]');
             if (!cb || !cb.checked) return;
-
-            if (spoMode) {
-                // Variables are s/p/o — reconstruct the actual triple
+            if (isSPO(vars)) {
                 var s = row[sVar], p = row[pVar], o = row[oVar];
                 if (!s || !p) return;
-                var subj = valueToTTL(s);
-                var pred = (p.type === 'uri') ? '<' + p.value + '>' : null;
-                var obj = valueToTTL(o);
-                if (subj && pred && obj) {
-                    lines.push(subj + ' ' + pred + ' ' + obj + ' .');
-                    hasTriples = true;
-                }
+                var subj = valueToTTL(s), pred = p.type === 'uri' ? '<' + p.value + '>' : null, obj = valueToTTL(o);
+                if (subj && pred && obj) { lines.push(subj + ' ' + pred + ' ' + obj + ' .'); hasTriples = true; }
             } else {
-                // Generic: first URI is subject, other vars become predicates
                 var subject = null, subjectVar = null;
                 for (var i = 0; i < vars.length; i++) {
                     var v = row[vars[i]];
                     if (v && v.type === 'uri') { subject = '<' + v.value + '>'; subjectVar = vars[i]; break; }
                 }
-                if (!subject) { subject = '_:row_' + epIdx + '_' + rowIdx; }
-
+                if (!subject) subject = '_:row_' + epIdx + '_' + rowIdx;
                 vars.forEach(function(varName) {
                     if (varName === subjectVar) return;
                     var obj = valueToTTL(row[varName]);
@@ -224,10 +592,8 @@ function downloadTTL() {
             }
         });
     });
-
     if (!hasTriples) { alert('No rows selected for download.'); return; }
-
-    var blob = new Blob([lines.join('\n')], {type: 'text/turtle'});
+    var blob = new Blob([lines.join('\n')], { type: 'text/turtle' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'sparql_results.ttl';

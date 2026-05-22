@@ -302,6 +302,11 @@ def add_multiple_to_selection():
     return {'added': added, 'selection_count': len(selection), 'added_uris': added_uris}, 200
 
 
+def _normalize_sparql_url(url: str) -> str:
+    """Append /sparql to a SPARQL endpoint URL if not already present."""
+    return url if url.rstrip('/').endswith('/sparql') else url.rstrip('/') + '/sparql'
+
+
 def _store_discovered_endpoints(dataset: Dataset) -> None:
     """Store discovered SPARQL endpoints in session for later credential config."""
     if 'discovered_endpoints' not in session:
@@ -313,6 +318,7 @@ def _store_discovered_endpoints(dataset: Dataset) -> None:
         url = dist.endpoint_url or dist.access_url
         if not url:
             continue
+        url = _normalize_sparql_url(url)
         endpoint_key = get_uri_hash(url)
         session['discovered_endpoints'][endpoint_key] = {
             'endpoint_url': url,
@@ -320,6 +326,7 @@ def _store_discovered_endpoints(dataset: Dataset) -> None:
             'dataset_title': dataset.title,
             'fdp_uri': dataset.fdp_uri,
             'fdp_title': dataset.fdp_title,
+            'catalog_title': dataset.catalog_title,
             'distribution_title': dist.title,
         }
 

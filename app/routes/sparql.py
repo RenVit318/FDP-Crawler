@@ -147,7 +147,8 @@ def query() -> str:
 
             endpoint_url = ep['endpoint_url']
             target_endpoints.append(endpoint_url)
-            fdp_titles[endpoint_url] = ep.get('fdp_title', endpoint_url)
+            parts = [ep.get('fdp_title', ''), ep.get('catalog_title', ''), ep.get('dataset_title', '')]
+            fdp_titles[endpoint_url] = ' / '.join(p for p in parts if p) or endpoint_url
 
             # Use the login credentials for all endpoints
             credentials_map[endpoint_url] = EndpointCredentials(
@@ -200,6 +201,12 @@ def results() -> str:
         'sparql/results.html',
         result=result_data,
     )
+
+
+@sparql_bp.route('/graph-test')
+def graph_test() -> str:
+    """Standalone graph rendering test page with mock triples."""
+    return render_template('sparql/graph_test.html')
 
 
 @sparql_bp.route('/results/clear', methods=['POST'])

@@ -3,7 +3,7 @@
 {% block title %}SPARQL Editor - {{ site.name }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="https://unpkg.com/yasqe@4/dist/yasqe.min.css">
+<link rel="stylesheet" href="https://unpkg.com/@triply/yasqe/build/yasqe.min.css">
 <style>
     .yasqe {
         border: 1px solid var(--border-color);
@@ -77,7 +77,7 @@
             </div>
 
             <div id="yasqe-container"></div>
-            <textarea id="query" name="query" style="display:none">{{ query_text }}</textarea>
+            <textarea id="query" name="query" class="form-control" rows="12" style="font-family: monospace; font-size: 0.85rem;">{{ query_text }}</textarea>
 
             <p class="form-hint" style="margin-top: 0.5rem;">
                 The same query runs against all selected endpoints.
@@ -94,7 +94,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/yasqe@4/dist/yasqe.bundled.min.js"></script>
+<script src="https://unpkg.com/@triply/yasqe/build/yasqe.bundled.min.js"></script>
 <script>
     const PRESETS = {
         select_all: `SELECT ?subject ?predicate ?object
@@ -127,25 +127,38 @@ WHERE {
 }`
     };
 
-    const initialQuery = document.getElementById('query').value.trim()
-        || PRESETS.select_all;
+    const queryTextarea = document.getElementById('query');
+    const initialQuery = queryTextarea.value.trim() || PRESETS.select_all;
+    queryTextarea.value = initialQuery;
 
-    const yasqe = new YASQE(document.getElementById('yasqe-container'), {
-        sparql: { showQueryButton: false },
-        persistencyIdentifier: null
-    });
-    yasqe.setValue(initialQuery);
+    let yasqe = null;
+    try {
+        yasqe = new YASQE(document.getElementById('yasqe-container'), {
+            sparql: { showQueryButton: false },
+            persistencyIdentifier: null
+        });
+        yasqe.setValue(initialQuery);
+        queryTextarea.style.display = 'none';
+    } catch (e) {
+        document.getElementById('yasqe-container').style.display = 'none';
+    }
 
     document.getElementById('preset-select').addEventListener('change', function () {
         const key = this.value;
         if (key && PRESETS[key]) {
-            yasqe.setValue(PRESETS[key]);
+            if (yasqe) {
+                yasqe.setValue(PRESETS[key]);
+            } else {
+                queryTextarea.value = PRESETS[key];
+            }
         }
         this.value = '';
     });
 
     document.getElementById('sparql-form').addEventListener('submit', function () {
-        document.getElementById('query').value = yasqe.getValue();
+        if (yasqe) {
+            queryTextarea.value = yasqe.getValue();
+        }
     });
 </script>
 {% endblock %}
