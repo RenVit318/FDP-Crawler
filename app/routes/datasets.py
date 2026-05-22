@@ -143,19 +143,28 @@ def refresh():
         return redirect(url_for('datasets.browse'))
 
     cache = current_app.fdp_cache
-    errors = 0
+    no_data, stale = [], []
     for uri in fdp_uris:
         entry = cache.fetch_and_cache_fdp(uri)
-        if entry is None or entry.error:
-            errors += 1
+        if entry is None:
+            no_data.append(uri)
+        elif entry.error:
+            stale.append(uri)
 
     datasets = cache.get_datasets_for_fdps(fdp_uris)
-    if errors:
+    if no_data:
+        hosts = ', '.join(u.split('//')[-1].split('/')[0] for u in no_data)
         flash(
-            f'Refreshed with {errors} error(s); cache holds {len(datasets)} dataset(s).',
+            f'{len(no_data)} FDP(s) unreachable with no cached data ({hosts}).',
+            'error',
+        )
+    if stale:
+        hosts = ', '.join(u.split('//')[-1].split('/')[0] for u in stale)
+        flash(
+            f'Refresh failed for {len(stale)} FDP(s) ({hosts}) — showing cached data.',
             'warning',
         )
-    else:
+    if not no_data and not stale:
         flash(f'Successfully refreshed {len(datasets)} dataset(s).', 'success')
 
     return redirect(url_for('datasets.browse'))
