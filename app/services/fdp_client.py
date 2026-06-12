@@ -258,61 +258,46 @@ class FDPClient:
             FDPParseError: If RDF cannot be parsed.
         """
         graph = self._fetch_rdf(uri)
-        # Try both with and without trailing slash for URI matching
-        # FDPs may use either form in their RDF data
+        # FDPs may use either URI form (with/without trailing slash) in their RDF.
         normalized_uri = uri.rstrip('/')
-        fdp_uri = URIRef(normalized_uri)
-        fdp_uri_with_slash = URIRef(normalized_uri + '/')
+        subjects = (URIRef(normalized_uri), URIRef(normalized_uri + '/'))
 
-        # Get title - try both URI forms
-        title = self._get_literal_value(graph, fdp_uri, DCT.title)
-        if not title:
-            title = self._get_literal_value(graph, fdp_uri_with_slash, DCT.title)
-        if not title:
-            title = self._get_literal_value(graph, fdp_uri, RDFS.label)
-        if not title:
-            title = self._get_literal_value(graph, fdp_uri_with_slash, RDFS.label)
-        if not title:
-            title = uri
+        def first_literal(*predicates) -> Optional[str]:
+            for predicate in predicates:
+                for subject in subjects:
+                    value = self._get_literal_value(graph, subject, predicate)
+                    if value:
+                        return value
+            return None
 
-        # Get description - try both URI forms
-        description = self._get_literal_value(graph, fdp_uri, DCT.description)
-        if not description:
-            description = self._get_literal_value(graph, fdp_uri_with_slash, DCT.description)
+        def first_uri_list(predicate) -> List[str]:
+            for subject in subjects:
+                uris = self._get_uri_list(graph, subject, predicate)
+                if uris:
+                    return uris
+            return []
 
-        # Get publisher - try both URI forms
-        publisher = self._get_literal_value(graph, fdp_uri, DCT.publisher)
-        if not publisher:
-            publisher = self._get_literal_value(graph, fdp_uri_with_slash, DCT.publisher)
+        title = first_literal(DCT.title, RDFS.label) or uri
+        description = first_literal(DCT.description)
+        publisher = first_literal(DCT.publisher)
 
         # Get catalogs (via fdp:metadataCatalog or ldp:DirectContainer)
-        # Try both URI forms
-        catalogs = self._get_uri_list(graph, fdp_uri, FDP.metadataCatalog)
-        if not catalogs:
-            catalogs = self._get_uri_list(graph, fdp_uri_with_slash, FDP.metadataCatalog)
+        catalogs = first_uri_list(FDP.metadataCatalog)
         logger.info(f"Found {len(catalogs)} catalogs via fdp:metadataCatalog for {uri}")
 
-        # Also check for catalogs in LDP DirectContainer
-        # Look for any ldp:DirectContainer that has this FDP as membershipResource
+        # Also check for catalogs in any LDP DirectContainer with this FDP as membershipResource
         for container in graph.subjects(RDF.type, LDP.DirectContainer):
-            membership_resource = graph.value(container, LDP.membershipResource)
-            # Check both URI forms
-            if membership_resource == fdp_uri or membership_resource == fdp_uri_with_slash:
-                # Get all catalogs from ldp:contains
+            if graph.value(container, LDP.membershipResource) in subjects:
                 ldp_catalogs = self._get_uri_list(graph, container, LDP.contains)
                 logger.info(f"Found {len(ldp_catalogs)} catalogs via LDP DirectContainer for {uri}")
-                # Add any new catalogs not already in the list
                 for cat in ldp_catalogs:
                     if cat not in catalogs:
                         catalogs.append(cat)
 
         logger.info(f"Total catalogs discovered for {uri}: {len(catalogs)}")
 
-        # Check if this is an index FDP (has fdp:metadataService links)
-        # Try both URI forms
-        linked_fdps = self._get_uri_list(graph, fdp_uri, FDP.metadataService)
-        if not linked_fdps:
-            linked_fdps = self._get_uri_list(graph, fdp_uri_with_slash, FDP.metadataService)
+        # An FDP that links other FDPs via fdp:metadataService is an index
+        linked_fdps = first_uri_list(FDP.metadataService)
         is_index = len(linked_fdps) > 0
 
         return FairDataPoint(

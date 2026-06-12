@@ -4,7 +4,7 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from app.models import Dataset
 from app.services.fdp_client import FDPClient, FDPError
@@ -118,12 +118,13 @@ class Application:
 class DatasetService:
     """Service for aggregating and filtering datasets from FDPs."""
 
-    def __init__(self, fdp_client: FDPClient):
+    def __init__(self, fdp_client: Optional[FDPClient] = None):
         """
         Initialize the dataset service.
 
         Args:
-            fdp_client: FDP client for fetching metadata.
+            fdp_client: FDP client for fetching metadata. Only required for
+                get_all_datasets(); the aggregation/filter methods are pure.
         """
         self.fdp_client = fdp_client
 

@@ -132,9 +132,11 @@ def query() -> str:
                 selected=selected_hashes,
             )
 
-        # Build execution plan using login credentials for all endpoints
+        # Build execution plan. Per-endpoint credentials (configured under
+        # /auth/credentials) take precedence; login credentials are the fallback.
         user = session.get('user', {})
         discovered = session.get('discovered_endpoints', {})
+        endpoint_creds = session.get('endpoint_credentials', {})
 
         target_endpoints = []
         credentials_map = {}
@@ -150,12 +152,12 @@ def query() -> str:
             parts = [ep.get('fdp_title', ''), ep.get('catalog_title', ''), ep.get('dataset_title', '')]
             fdp_titles[endpoint_url] = ' / '.join(p for p in parts if p) or endpoint_url
 
-            # Use the login credentials for all endpoints
+            configured = endpoint_creds.get(ep_hash, {})
             credentials_map[endpoint_url] = EndpointCredentials(
                 fdp_uri=ep.get('fdp_uri', ''),
                 sparql_endpoint=endpoint_url,
-                username=user.get('username', ''),
-                password=user.get('password', ''),
+                username=configured.get('username') or user.get('username', ''),
+                password=configured.get('password') or user.get('password', ''),
             )
 
         # Execute federated query

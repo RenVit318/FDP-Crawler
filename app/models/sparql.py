@@ -31,28 +31,6 @@ class SPARQLQuery:
             'created_at': self.created_at.isoformat(),
         }
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SPARQLQuery':
-        """Create a SPARQLQuery from a dictionary.
-
-        Args:
-            data: Dictionary with query fields.
-
-        Returns:
-            SPARQLQuery instance.
-        """
-        created_at = data.get('created_at')
-        if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at)
-        elif created_at is None:
-            created_at = datetime.now()
-
-        return cls(
-            query_text=data['query_text'],
-            target_endpoints=data['target_endpoints'],
-            created_at=created_at,
-        )
-
 
 @dataclass
 class EndpointResult:
@@ -92,26 +70,6 @@ class EndpointResult:
             'execution_time_ms': self.execution_time_ms,
         }
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'EndpointResult':
-        """Create an EndpointResult from a dictionary.
-
-        Args:
-            data: Dictionary with result fields.
-
-        Returns:
-            EndpointResult instance.
-        """
-        return cls(
-            endpoint_uri=data['endpoint_uri'],
-            fdp_title=data['fdp_title'],
-            success=data['success'],
-            bindings=data.get('bindings', []),
-            variables=data.get('variables', []),
-            error_message=data.get('error_message'),
-            execution_time_ms=data.get('execution_time_ms', 0),
-        )
-
 
 @dataclass
 class QueryResult:
@@ -147,30 +105,3 @@ class QueryResult:
             'failed_endpoints': self.failed_endpoints,
             'executed_at': self.executed_at.isoformat(),
         }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'QueryResult':
-        """Create a QueryResult from a dictionary.
-
-        Args:
-            data: Dictionary with result fields.
-
-        Returns:
-            QueryResult instance.
-        """
-        executed_at = data.get('executed_at')
-        if isinstance(executed_at, str):
-            executed_at = datetime.fromisoformat(executed_at)
-        elif executed_at is None:
-            executed_at = datetime.now()
-
-        return cls(
-            query=SPARQLQuery.from_dict(data['query']),
-            endpoint_results=[
-                EndpointResult.from_dict(r) for r in data.get('endpoint_results', [])
-            ],
-            total_bindings=data.get('total_bindings', 0),
-            successful_endpoints=data.get('successful_endpoints', 0),
-            failed_endpoints=data.get('failed_endpoints', 0),
-            executed_at=executed_at,
-        )

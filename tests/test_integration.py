@@ -94,7 +94,7 @@ class TestIndexRoute:
         """Test that the index page shows status counts."""
         response = client.get('/')
         assert b'FDPs Configured' in response.data
-        assert b'Datasets in Basket' in response.data
+        assert b'Datasets in Selection' in response.data
 
 
 class TestFDPRoutes:
@@ -106,15 +106,27 @@ class TestFDPRoutes:
         assert response.status_code == 200
         assert b'No FDPs configured' in response.data
 
+    def test_add_fdp_requires_admin(self, client):
+        """Test that the add FDP page is admin-gated."""
+        response = client.get('/fdp/add', follow_redirects=True)
+        assert response.status_code == 200
+        assert b'Administrator login required' in response.data
+
     def test_add_fdp_form(self, client):
-        """Test the add FDP form page."""
+        """Test the add FDP form page (as admin)."""
+        with client.session_transaction() as sess:
+            sess['is_admin'] = True
+
         response = client.get('/fdp/add')
         assert response.status_code == 200
         assert b'Add FAIR Data Point' in response.data
 
     @responses.activate
     def test_add_fdp_success(self, client, sample_fdp_rdf):
-        """Test adding an FDP successfully."""
+        """Test adding an FDP successfully (as admin)."""
+        with client.session_transaction() as sess:
+            sess['is_admin'] = True
+
         responses.add(
             responses.GET,
             'https://example.org/fdp',
@@ -131,6 +143,9 @@ class TestFDPRoutes:
 
     def test_add_fdp_invalid_url(self, client):
         """Test adding an FDP with invalid URL."""
+        with client.session_transaction() as sess:
+            sess['is_admin'] = True
+
         response = client.post('/fdp/add', data={
             'url': 'not-a-valid-url',
         })
@@ -163,31 +178,31 @@ class TestDatasetRoutes:
 class TestRequestRoutes:
     """Test request composition routes."""
 
-    def test_basket_empty(self, client):
-        """Test viewing empty basket."""
+    def test_selection_empty(self, client):
+        """Test viewing empty selection."""
         response = client.get('/request/')
         assert response.status_code == 200
-        assert b'Your basket is empty' in response.data
+        assert b'Your selection is empty' in response.data
 
-    def test_compose_without_basket(self, client):
-        """Test composing request without items in basket."""
+    def test_compose_without_selection(self, client):
+        """Test composing request without items in selection."""
         response = client.get('/request/compose', follow_redirects=True)
         assert response.status_code == 200
-        assert b'Your basket is empty' in response.data or b'Browse Datasets' in response.data
+        assert b'Your selection is empty' in response.data
 
     def test_preview_without_request(self, client):
         """Test preview without composed request."""
         response = client.get('/request/preview', follow_redirects=True)
         assert response.status_code == 200
 
-    def test_clear_basket(self, client):
-        """Test clearing the basket."""
+    def test_clear_selection(self, client):
+        """Test clearing the selection."""
         with client.session_transaction() as sess:
-            sess['basket'] = [{'uri': 'test', 'title': 'Test', 'fdp_title': 'FDP'}]
+            sess['selection'] = [{'uri': 'test', 'title': 'Test', 'fdp_title': 'FDP'}]
 
         response = client.post('/request/clear', follow_redirects=True)
         assert response.status_code == 200
-        assert b'Basket cleared' in response.data
+        assert b'Selection cleared' in response.data
 
 
 class TestFullWorkflow:
@@ -218,7 +233,10 @@ class TestFullWorkflow:
             content_type='text/turtle',
         )
 
-        # Step 1: Add FDP
+        # Step 1: Add FDP (admin-only action)
+        with client.session_transaction() as sess:
+            sess['is_admin'] = True
+
         response = client.post('/fdp/add', data={
             'url': 'https://example.org/fdp',
         }, follow_redirects=True)
@@ -247,9 +265,9 @@ class TestFullWorkflow:
         response = client.post('/datasets/refresh', follow_redirects=True)
         assert response.status_code == 200
 
-        # Step 3: Add to basket (simulate)
+        # Step 3: Add to selection (simulate)
         with client.session_transaction() as sess:
-            sess['basket'] = [{
+            sess['selection'] = [{
                 'uri': 'https://example.org/dataset/1',
                 'uri_hash': 'test123',
                 'title': 'Test Dataset',
@@ -257,7 +275,7 @@ class TestFullWorkflow:
                 'contact_point': {'email': 'test@example.org'},
             }]
 
-        # Step 4: View basket
+        # Step 4: View selection
         response = client.get('/request/')
         assert response.status_code == 200
         assert b'Test Dataset' in response.data
@@ -316,10 +334,10 @@ class TestSessionPersistence:
         finally:
             app.fdp_cache._entries.pop('https://example.org', None)
 
-    def test_basket_persists_in_session(self, client):
-        """Test that basket data persists in session."""
+    def test_selection_persists_in_session(self, client):
+        """Test that selection data persists in session."""
         with client.session_transaction() as sess:
-            sess['basket'] = [{'uri': 'test', 'uri_hash': 'hash', 'title': 'Test Dataset', 'fdp_title': 'FDP'}]
+            sess['selection'] = [{'uri': 'test', 'uri_hash': 'hash', 'title': 'Test Dataset', 'fdp_title': 'FDP'}]
 
         response = client.get('/request/')
         assert response.status_code == 200
@@ -335,7 +353,7 @@ class TestErrorHandling:
         assert response.status_code == 200
         assert b'not found' in response.data.lower() or b'browse' in response.data.lower()
 
-    def test_remove_nonexistent_from_basket(self, client):
-        """Test removing nonexistent item from basket."""
-        response = client.post('/datasets/nonexistent/remove-from-basket', follow_redirects=True)
+    def test_remove_nonexistent_from_selection(self, client):
+        """Test removing nonexistent item from selection."""
+        response = client.post('/datasets/nonexistent/remove-from-selection', follow_redirects=True)
         assert response.status_code == 200

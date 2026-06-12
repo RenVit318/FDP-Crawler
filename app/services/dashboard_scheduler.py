@@ -1,10 +1,15 @@
 """Dashboard scheduler — periodic refresh of aggregate statistics."""
 
 import atexit
-import fcntl
 import logging
 import os
 from datetime import datetime
+
+try:
+    import fcntl
+except ImportError:
+    # Windows dev runs a single process, so the cross-worker lock is unnecessary.
+    fcntl = None
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -32,16 +37,17 @@ def init_scheduler(app):
     """
     global _lock_file
 
-    data_dir = os.path.join(app.root_path, 'data', 'dashboard')
-    os.makedirs(data_dir, exist_ok=True)
-    lock_path = os.path.join(data_dir, '.scheduler.lock')
+    if fcntl is not None:
+        data_dir = os.path.join(app.root_path, 'data', 'dashboard')
+        os.makedirs(data_dir, exist_ok=True)
+        lock_path = os.path.join(data_dir, '.scheduler.lock')
 
-    _lock_file = open(lock_path, 'w')
-    try:
-        fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except (BlockingIOError, OSError):
-        logger.debug('Another worker owns the dashboard scheduler, skipping')
-        return
+        _lock_file = open(lock_path, 'w')
+        try:
+            fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, OSError):
+            logger.debug('Another worker owns the dashboard scheduler, skipping')
+            return
 
     interval = app.config.get('DASHBOARD_REFRESH_INTERVAL', 86400)
 

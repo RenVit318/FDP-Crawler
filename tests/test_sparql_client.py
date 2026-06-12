@@ -399,3 +399,25 @@ SELECT * WHERE { ?s ?p ?o }'''
         client = SPARQLClient()
         assert client.validate_query('select ?s where { ?s ?p ?o }') is True
         assert client.validate_query('Select ?s Where { ?s ?p ?o }') is True
+
+    def test_validate_allows_keywords_inside_words(self):
+        """Identifiers containing blocked keywords as substrings must pass."""
+        client = SPARQLClient()
+        assert client.validate_query(
+            'SELECT ?date WHERE { ?s dct:created ?date }'
+        ) is True
+        assert client.validate_query(
+            'SELECT ?address WHERE { ?s ex:address ?address }'
+        ) is True
+        assert client.validate_query(
+            'SELECT ?s WHERE { ?s ex:dropdownValue ?o }'
+        ) is True
+
+    def test_validate_blocks_update_keywords_as_words(self):
+        """Whole-word UPDATE keywords are still rejected."""
+        client = SPARQLClient()
+        assert client.validate_query('INSERT DATA { <a> <b> <c> }') is False
+        assert client.validate_query('DROP GRAPH <http://example.org/g>') is False
+        assert client.validate_query(
+            'SELECT ?s WHERE { ?s ?p ?o } ; DELETE WHERE { ?s ?p ?o }'
+        ) is False

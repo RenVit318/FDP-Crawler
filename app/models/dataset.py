@@ -114,18 +114,6 @@ class Dataset:
         """Get distributions that are SPARQL endpoints."""
         return [d for d in self.distributions if d.is_sparql_endpoint]
 
-    @property
-    def all_contact_emails(self) -> List[str]:
-        """Collect all contact emails from dataset and distribution levels."""
-        emails = []
-        if self.contact_point and self.contact_point.email:
-            emails.append(self.contact_point.email)
-        for dist in self.distributions:
-            if dist.contact_point and dist.contact_point.email:
-                if dist.contact_point.email not in emails:
-                    emails.append(dist.contact_point.email)
-        return emails
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -147,22 +135,4 @@ class Dataset:
             'fdp_uri': self.fdp_uri,
             'fdp_title': self.fdp_title,
             'distributions': [d.to_dict() for d in self.distributions],
-        }
-
-    def to_minimal_dict(self) -> Dict[str, Any]:
-        """Convert to minimal dictionary for session caching (to reduce size)."""
-        return {
-            'uri': self.uri,
-            'title': self.title,
-            'catalog_uri': self.catalog_uri,
-            'catalog_title': self.catalog_title,
-            'catalog_homepage': self.catalog_homepage,
-            'fdp_uri': self.fdp_uri,
-            'fdp_title': self.fdp_title,
-            'description': self.description,
-            'themes': self.themes,
-            'keywords': self.keywords,
-            'contact_point': self.contact_point.to_dict() if self.contact_point else None,
-            'landing_page': self.landing_page,
-            'distribution_count': len(self.distributions),
         }

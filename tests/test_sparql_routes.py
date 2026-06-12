@@ -13,8 +13,8 @@ def _ep_hash(url: str) -> str:
 
 # Reusable session helpers
 
-def _session_with_basket_and_endpoints(sess, username='test', password='testpass'):
-    """Set up a session with a logged-in user, a basket dataset, and a discovered endpoint."""
+def _session_with_selection_and_endpoints(sess, username='test', password='testpass'):
+    """Set up a session with a logged-in user, a selected dataset, and a discovered endpoint."""
     ep_url = 'http://example.org/sparql'
     dataset_uri = 'http://example.org/dataset/1'
     ep_hash = _ep_hash(ep_url)
@@ -24,7 +24,7 @@ def _session_with_basket_and_endpoints(sess, username='test', password='testpass
         'password': password,
         'is_authenticated': True,
     }
-    sess['basket'] = [
+    sess['selection'] = [
         {'uri': dataset_uri, 'title': 'Test Dataset', 'fdp_title': 'Test FDP'},
     ]
     sess['discovered_endpoints'] = {
@@ -48,22 +48,22 @@ class TestSPARQLIndex:
         response = client.get('/sparql/', follow_redirects=True)
         assert b'Please log in' in response.data
 
-    def test_sparql_index_empty_basket(self, client):
-        """Test SPARQL index with empty basket."""
+    def test_sparql_index_empty_selection(self, client):
+        """Test SPARQL index with empty selection."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'password': 'pass', 'is_authenticated': True}
-            sess['basket'] = []
+            sess['selection'] = []
             sess['discovered_endpoints'] = {}
 
         response = client.get('/sparql/')
         assert response.status_code == 200
-        assert b'Basket is Empty' in response.data
+        assert b'Selection is Empty' in response.data
 
-    def test_sparql_index_basket_no_endpoints(self, client):
-        """Test SPARQL index with basket datasets but no discovered endpoints."""
+    def test_sparql_index_selection_no_endpoints(self, client):
+        """Test SPARQL index with selected datasets but no discovered endpoints."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'password': 'pass', 'is_authenticated': True}
-            sess['basket'] = [
+            sess['selection'] = [
                 {'uri': 'http://example.org/dataset/1', 'title': 'Test Dataset', 'fdp_title': 'Test FDP'},
             ]
             sess['discovered_endpoints'] = {}
@@ -73,9 +73,9 @@ class TestSPARQLIndex:
         assert b'No SPARQL Endpoints Found' in response.data
 
     def test_sparql_index_with_endpoints(self, client):
-        """Test SPARQL index shows endpoints from basket datasets."""
+        """Test SPARQL index shows endpoints from selected datasets."""
         with client.session_transaction() as sess:
-            _session_with_basket_and_endpoints(sess)
+            _session_with_selection_and_endpoints(sess)
 
         response = client.get('/sparql/')
         assert response.status_code == 200
@@ -83,21 +83,21 @@ class TestSPARQLIndex:
         assert b'Test FDP' in response.data
         assert b'http://example.org/sparql' in response.data
 
-    def test_sparql_index_filters_by_basket(self, client):
-        """Test that endpoints not in basket are excluded."""
+    def test_sparql_index_filters_by_selection(self, client):
+        """Test that endpoints not in the selection are excluded."""
         ep_url = 'http://other.org/sparql'
         ep_hash = _ep_hash(ep_url)
 
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'password': 'pass', 'is_authenticated': True}
-            # Basket has one dataset, but discovered endpoint belongs to a different dataset
-            sess['basket'] = [
-                {'uri': 'http://example.org/dataset/1', 'title': 'In Basket'},
+            # Selection has one dataset, but discovered endpoint belongs to a different dataset
+            sess['selection'] = [
+                {'uri': 'http://example.org/dataset/1', 'title': 'In Selection'},
             ]
             sess['discovered_endpoints'] = {
                 ep_hash: {
                     'endpoint_url': ep_url,
-                    'dataset_uri': 'http://other.org/dataset/99',  # Not in basket
+                    'dataset_uri': 'http://other.org/dataset/99',  # Not in selection
                     'dataset_title': 'Other Dataset',
                     'fdp_uri': 'http://other.org',
                     'fdp_title': 'Other FDP',
@@ -118,21 +118,21 @@ class TestSPARQLQuery:
         response = client.get('/sparql/query', follow_redirects=True)
         assert b'Please log in' in response.data
 
-    def test_query_redirects_empty_basket(self, client):
-        """Test query page redirects when basket is empty."""
+    def test_query_redirects_empty_selection(self, client):
+        """Test query page redirects when selection is empty."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'password': 'pass', 'is_authenticated': True}
-            sess['basket'] = []
+            sess['selection'] = []
             sess['discovered_endpoints'] = {}
 
         response = client.get('/sparql/query', follow_redirects=True)
-        assert b'basket is empty' in response.data.lower() or b'Browse' in response.data
+        assert b'selection is empty' in response.data.lower()
 
     def test_query_redirects_no_endpoints(self, client):
-        """Test query page redirects when basket has no endpoints."""
+        """Test query page redirects when selection has no endpoints."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'password': 'pass', 'is_authenticated': True}
-            sess['basket'] = [
+            sess['selection'] = [
                 {'uri': 'http://example.org/dataset/1', 'title': 'Test Dataset'},
             ]
             sess['discovered_endpoints'] = {}
@@ -141,9 +141,9 @@ class TestSPARQLQuery:
         assert b'No SPARQL endpoints' in response.data
 
     def test_query_page_loads(self, client):
-        """Test query page loads with basket endpoints."""
+        """Test query page loads with selection endpoints."""
         with client.session_transaction() as sess:
-            _session_with_basket_and_endpoints(sess)
+            _session_with_selection_and_endpoints(sess)
 
         response = client.get('/sparql/query')
         assert response.status_code == 200
@@ -153,7 +153,7 @@ class TestSPARQLQuery:
     def test_query_empty_query(self, client):
         """Test submitting empty query."""
         with client.session_transaction() as sess:
-            ep_hash = _session_with_basket_and_endpoints(sess)
+            ep_hash = _session_with_selection_and_endpoints(sess)
 
         response = client.post('/sparql/query', data={
             'query': '',
@@ -166,7 +166,7 @@ class TestSPARQLQuery:
     def test_query_no_endpoints_selected(self, client):
         """Test submitting query without selecting endpoints."""
         with client.session_transaction() as sess:
-            _session_with_basket_and_endpoints(sess)
+            _session_with_selection_and_endpoints(sess)
 
         response = client.post('/sparql/query', data={
             'query': 'SELECT * WHERE { ?s ?p ?o }',
@@ -179,7 +179,7 @@ class TestSPARQLQuery:
     def test_query_invalid_syntax(self, client):
         """Test submitting invalid query syntax."""
         with client.session_transaction() as sess:
-            ep_hash = _session_with_basket_and_endpoints(sess)
+            ep_hash = _session_with_selection_and_endpoints(sess)
 
         response = client.post('/sparql/query', data={
             'query': 'DELETE WHERE { ?s ?p ?o }',
@@ -202,7 +202,7 @@ class TestSPARQLQuery:
         )
 
         with client.session_transaction() as sess:
-            ep_hash = _session_with_basket_and_endpoints(sess)
+            ep_hash = _session_with_selection_and_endpoints(sess)
 
         response = client.post('/sparql/query', data={
             'query': 'SELECT ?s WHERE { ?s ?p ?o }',
@@ -223,7 +223,7 @@ class TestSPARQLQuery:
         )
 
         with client.session_transaction() as sess:
-            ep_hash = _session_with_basket_and_endpoints(
+            ep_hash = _session_with_selection_and_endpoints(
                 sess, username='dbuser', password='dbpass'
             )
 
@@ -337,7 +337,7 @@ class TestSPARQLIntegration:
 
     @responses.activate
     def test_full_workflow(self, client):
-        """Test complete SPARQL query workflow: login -> basket -> query -> results."""
+        """Test complete SPARQL query workflow: login -> selection -> query -> results."""
         # Mock the SPARQL endpoint
         responses.add(
             responses.POST,
@@ -354,13 +354,13 @@ class TestSPARQLIntegration:
             'password': 'testpass',
         })
 
-        # Set up basket and discovered endpoints (simulates having browsed dataset details)
+        # Set up selection and discovered endpoints (simulates having browsed dataset details)
         ep_url = 'http://example.org/sparql'
         dataset_uri = 'http://example.org/dataset/1'
         ep_hash = _ep_hash(ep_url)
 
         with client.session_transaction() as sess:
-            sess['basket'] = [
+            sess['selection'] = [
                 {'uri': dataset_uri, 'title': 'Test Dataset', 'fdp_title': 'Test FDP'},
             ]
             sess['discovered_endpoints'] = {

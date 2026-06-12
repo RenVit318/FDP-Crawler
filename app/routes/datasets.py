@@ -4,9 +4,8 @@ import logging
 
 from flask import Blueprint, current_app, render_template, request, session, flash, redirect, url_for
 
-from app.config import Config
 from app.models import Dataset, ContactPoint, Distribution
-from app.services import FDPClient, DatasetService
+from app.services import DatasetService
 from app.services.admin_service import get_page_content
 from app.services.dataset_service import application_key
 from app.utils import get_uri_hash
@@ -64,6 +63,36 @@ def _get_cached_datasets() -> list:
     return cache.get_datasets_for_fdps(fdp_uris)
 
 
+def _find_dataset_dict(uri_hash: str) -> dict:
+    """Find a cached dataset dict by its URI hash, or None."""
+    for d in _get_cached_datasets():
+        if get_uri_hash(d['uri']) == uri_hash:
+            return d
+    return None
+
+
+def _selection_item(d: dict) -> dict:
+    """Build the session selection entry for a cached dataset dict."""
+    return {
+        'uri': d['uri'],
+        'uri_hash': get_uri_hash(d['uri']),
+        'title': d['title'],
+        'fdp_title': d['fdp_title'],
+        'catalog_uri': d.get('catalog_uri'),
+        'catalog_title': d.get('catalog_title'),
+        'catalog_homepage': d.get('catalog_homepage'),
+        'contact_point': d.get('contact_point'),
+    }
+
+
+def _redirect_back():
+    """Redirect to the 'next' form field or referrer, falling back to browse."""
+    next_url = request.form.get('next') or request.referrer
+    if not next_url or not next_url.startswith('/') or next_url.startswith('//'):
+        next_url = url_for('datasets.browse')
+    return redirect(next_url)
+
+
 @datasets_bp.route('/')
 def browse():
     """Render the full cached dataset list for client-side filtering.
@@ -76,8 +105,7 @@ def browse():
     datasets_dicts = _get_cached_datasets()
     datasets = [dataset_from_dict(d) for d in datasets_dicts]
 
-    client = FDPClient(timeout=Config.FDP_TIMEOUT, verify_ssl=Config.FDP_VERIFY_SSL)
-    service = DatasetService(client)
+    service = DatasetService()
 
     datasets.sort(key=lambda d: (d.title or '').lower())
 
@@ -165,12 +193,7 @@ def refresh():
 def detail(uri_hash: str):
     """Show dataset detail view, served entirely from cache."""
     datasets_dicts = _get_cached_datasets()
-
-    dataset_dict = None
-    for d in datasets_dicts:
-        if get_uri_hash(d['uri']) == uri_hash:
-            dataset_dict = d
-            break
+    dataset_dict = _find_dataset_dict(uri_hash)
 
     if not dataset_dict:
         flash('Dataset not found.', 'error')
@@ -228,17 +251,7 @@ def add_application_to_selection():
             continue
         if d['uri'] in existing_uris:
             continue
-        uri_hash = get_uri_hash(d['uri'])
-        selection.append({
-            'uri': d['uri'],
-            'uri_hash': uri_hash,
-            'title': d['title'],
-            'fdp_title': d['fdp_title'],
-            'catalog_uri': d.get('catalog_uri'),
-            'catalog_title': d.get('catalog_title'),
-            'catalog_homepage': d.get('catalog_homepage'),
-            'contact_point': d.get('contact_point'),
-        })
+        selection.append(_selection_item(d))
         existing_uris.add(d['uri'])
         added += 1
 
@@ -253,10 +266,7 @@ def add_application_to_selection():
     else:
         flash('All datasets for this application are already in your selection.', 'info')
 
-    next_url = request.form.get('next') or request.referrer
-    if not next_url or not next_url.startswith('/') or next_url.startswith('//'):
-        next_url = url_for('datasets.browse')
-    return redirect(next_url)
+    return _redirect_back()
 
 
 @datasets_bp.route('/add-multiple-to-selection', methods=['POST'])
@@ -282,16 +292,7 @@ def add_multiple_to_selection():
         if not d or d['uri'] in existing_uris:
             continue
         _store_discovered_endpoints(dataset_from_dict(d))
-        selection.append({
-            'uri': d['uri'],
-            'uri_hash': h,
-            'title': d['title'],
-            'fdp_title': d['fdp_title'],
-            'catalog_uri': d.get('catalog_uri'),
-            'catalog_title': d.get('catalog_title'),
-            'catalog_homepage': d.get('catalog_homepage'),
-            'contact_point': d.get('contact_point'),
-        })
+        selection.append(_selection_item(d))
         existing_uris.add(d['uri'])
         added += 1
         added_uris.append(d['uri'])
@@ -336,14 +337,7 @@ def _store_discovered_endpoints(dataset: Dataset) -> None:
 @datasets_bp.route('/<uri_hash>/add-to-selection', methods=['POST'])
 def add_to_selection(uri_hash: str):
     """Add a dataset to the request selection."""
-    datasets_dicts = _get_cached_datasets()
-
-    dataset_dict = None
-    for d in datasets_dicts:
-        if get_uri_hash(d['uri']) == uri_hash:
-            dataset_dict = d
-            break
-
+    dataset_dict = _find_dataset_dict(uri_hash)
     if not dataset_dict:
         flash('Dataset not found.', 'error')
         return redirect(url_for('datasets.browse'))
@@ -357,17 +351,7 @@ def add_to_selection(uri_hash: str):
     else:
         # Full dataset (with distributions) comes from cache — no extra HTTP.
         _store_discovered_endpoints(dataset_from_dict(dataset_dict))
-
-        selection.append({
-            'uri': dataset_dict['uri'],
-            'uri_hash': uri_hash,
-            'title': dataset_dict['title'],
-            'fdp_title': dataset_dict['fdp_title'],
-            'catalog_uri': dataset_dict.get('catalog_uri'),
-            'catalog_title': dataset_dict.get('catalog_title'),
-            'catalog_homepage': dataset_dict.get('catalog_homepage'),
-            'contact_point': dataset_dict.get('contact_point'),
-        })
+        selection.append(_selection_item(dataset_dict))
         session['selection'] = selection
         session.modified = True
         if not is_xhr:
@@ -376,10 +360,7 @@ def add_to_selection(uri_hash: str):
     if is_xhr:
         return {'added': not already, 'selection_count': len(selection)}, 200
 
-    next_url = request.form.get('next') or request.referrer
-    if not next_url or not next_url.startswith('/') or next_url.startswith('//'):
-        next_url = url_for('datasets.browse')
-    return redirect(next_url)
+    return _redirect_back()
 
 
 @datasets_bp.route('/<uri_hash>/remove-from-selection', methods=['POST'])
@@ -402,7 +383,4 @@ def remove_from_selection(uri_hash: str):
     if is_xhr:
         return {'removed': removed, 'selection_count': len(new_selection)}, 200
 
-    next_url = request.form.get('next') or request.referrer
-    if not next_url or not next_url.startswith('/') or next_url.startswith('//'):
-        next_url = url_for('datasets.browse')
-    return redirect(next_url)
+    return _redirect_back()

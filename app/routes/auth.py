@@ -94,18 +94,12 @@ def logout() -> str:
 @auth_bp.route('/credentials')
 @login_required
 def list_credentials() -> str:
-    """List configured endpoint credentials.
-
-    Returns:
-        Rendered credentials list template.
-    """
+    """List configured endpoint credentials and discovered endpoints."""
     credentials = session.get('endpoint_credentials', {})
-    fdps = session.get('fdps', {})
     discovered_endpoints = session.get('discovered_endpoints', {})
     return render_template(
         'auth/credentials.html',
         credentials=credentials,
-        fdps=fdps,
         discovered_endpoints=discovered_endpoints,
     )
 
@@ -113,36 +107,28 @@ def list_credentials() -> str:
 @auth_bp.route('/credentials/<fdp_hash>', methods=['GET', 'POST'])
 @login_required
 def configure_credentials(fdp_hash: str) -> str:
-    """Configure credentials for a specific FDP endpoint.
+    """Configure credentials for a discovered SPARQL endpoint."""
+    discovered_ep = session.get('discovered_endpoints', {}).get(fdp_hash)
+    existing = session.get('endpoint_credentials', {}).get(fdp_hash, {})
 
-    Args:
-        fdp_hash: The MD5 hash of the FDP URI.
-
-    Returns:
-        Rendered form or redirect on success.
-    """
-    fdps = session.get('fdps', {})
-    discovered = session.get('discovered_endpoints', {})
-
-    # Try FDP lookup first, then check discovered endpoints
-    fdp = fdps.get(fdp_hash)
-    discovered_ep = discovered.get(fdp_hash)
-    pre_filled_endpoint = ''
-
-    if not fdp and not discovered_ep:
-        flash('FDP not found.', 'error')
+    if not discovered_ep and not existing:
+        flash('Endpoint not found.', 'error')
         return redirect(url_for('auth.list_credentials'))
 
-    # If this is a discovered endpoint, build a pseudo-fdp dict for the template
-    if not fdp and discovered_ep:
+    if discovered_ep:
         fdp = {
             'uri': discovered_ep['fdp_uri'],
             'title': discovered_ep['fdp_title'],
             'description': f"Discovered from dataset: {discovered_ep['dataset_title']}",
         }
         pre_filled_endpoint = discovered_ep['endpoint_url']
-
-    existing = session.get('endpoint_credentials', {}).get(fdp_hash, {})
+    else:
+        fdp = {
+            'uri': existing.get('fdp_uri', ''),
+            'title': existing.get('sparql_endpoint', 'Configured endpoint'),
+            'description': None,
+        }
+        pre_filled_endpoint = existing.get('sparql_endpoint', '')
 
     if request.method == 'POST':
         sparql_endpoint = request.form.get('sparql_endpoint', '').strip()

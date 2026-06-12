@@ -187,7 +187,16 @@ def dashboard_config():
 @admin_required
 def dashboard_refresh():
     import threading
-    thread = threading.Thread(target=dashboard_service.refresh_all, daemon=True)
+    from flask import current_app
+
+    # refresh_all needs an app context (it reads current_app.config).
+    app = current_app._get_current_object()
+
+    def _run():
+        with app.app_context():
+            dashboard_service.refresh_all()
+
+    thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     flash('Dashboard refresh started. This may take a minute.', 'info')
     return redirect(url_for('admin.dashboard_config'))

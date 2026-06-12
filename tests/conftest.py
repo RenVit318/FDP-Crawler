@@ -3,16 +3,9 @@
 import pytest
 from pathlib import Path
 
-# Import create_app conditionally (not available until Subtask 8)
-try:
-    from app import create_app
-    HAS_APP_FACTORY = True
-except ImportError:
-    HAS_APP_FACTORY = False
-
+from app import create_app
 from app.models import (
     FairDataPoint,
-    Catalog,
     Dataset,
     ContactPoint,
     DataRequest,
@@ -26,8 +19,6 @@ FIXTURES_DIR = Path(__file__).parent / 'fixtures'
 @pytest.fixture
 def app():
     """Create and configure a Flask app instance for testing."""
-    if not HAS_APP_FACTORY:
-        pytest.skip("Flask app factory not yet implemented")
     app = create_app({'TESTING': True, 'SECRET_KEY': 'test-secret-key', 'DEFAULT_FDPS': []})
     yield app
 
@@ -35,8 +26,6 @@ def app():
 @pytest.fixture
 def client(app):
     """Create a test client for the Flask app."""
-    if not HAS_APP_FACTORY:
-        pytest.skip("Flask app factory not yet implemented")
     return app.test_client()
 
 
@@ -80,23 +69,6 @@ def sample_fdp() -> FairDataPoint:
         catalogs=['https://example.org/fdp/catalog/research-data'],
         linked_fdps=[],
         status='active',
-    )
-
-
-@pytest.fixture
-def sample_catalog() -> Catalog:
-    """Create a sample Catalog instance for testing."""
-    return Catalog(
-        uri='https://example.org/fdp/catalog/research-data',
-        title='Research Data Catalog',
-        description='Catalog containing research datasets.',
-        publisher='Example University',
-        fdp_uri='https://example.org/fdp',
-        datasets=[
-            'https://example.org/fdp/dataset/biodiversity-2023',
-            'https://example.org/fdp/dataset/climate-observations',
-        ],
-        themes=['http://www.wikidata.org/entity/Q7150'],
     )
 
 

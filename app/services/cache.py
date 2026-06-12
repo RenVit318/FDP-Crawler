@@ -4,7 +4,7 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 from app.services.fdp_client import FDPClient, FDPError
@@ -79,7 +79,7 @@ class FDPCache:
             entry = FDPCacheEntry(
                 fdp_dict=fdp.to_dict(),
                 datasets=[ds.to_dict() for ds in datasets],
-                last_updated=datetime.utcnow(),
+                last_updated=datetime.now(timezone.utc),
                 error=None,
             )
             with self._lock:

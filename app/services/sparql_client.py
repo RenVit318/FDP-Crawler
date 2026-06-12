@@ -1,6 +1,7 @@
 """SPARQL Client for executing authenticated queries against AllegroGraph endpoints."""
 
 import logging
+import re
 import time
 from typing import List, Dict, Any, Optional
 
@@ -188,37 +189,28 @@ class SPARQLClient:
             failed_endpoints=failed,
         )
 
+    _UPDATE_KEYWORDS = re.compile(
+        r'\b(DROP|CLEAR|INSERT|DELETE|LOAD|CREATE|MOVE|COPY|ADD)\b',
+        re.IGNORECASE,
+    )
+    _PROLOGUE = re.compile(r'\b(?:PREFIX\s+\S*\s*<[^>]*>|BASE\s*<[^>]*>)', re.IGNORECASE)
+    _QUERY_FORM = re.compile(r'^\s*(SELECT|CONSTRUCT|ASK|DESCRIBE)\b', re.IGNORECASE)
+
     def validate_query(self, query_text: str) -> bool:
-        """Validate SPARQL query syntax and reject dangerous operations.
-
-        Args:
-            query_text: The SPARQL query to validate.
-
-        Returns:
-            True if query appears valid and safe, False otherwise.
-        """
-        query_stripped = query_text.strip()
-        if not query_stripped:
+        """Reject empty queries, SPARQL UPDATE operations, and non-read query forms."""
+        stripped = query_text.strip()
+        if not stripped:
             return False
 
-        # Block dangerous SPARQL UPDATE operations (case-insensitive)
-        query_upper = query_stripped.upper()
-        dangerous_keywords = [
-            'DROP', 'CLEAR', 'INSERT', 'DELETE',
-            'LOAD', 'CREATE', 'MOVE', 'COPY', 'ADD',
-        ]
-        for keyword in dangerous_keywords:
-            if keyword in query_upper:
-                return False
+        # Drop comment lines so e.g. '# delete later' doesn't trip the blocklist.
+        body = '\n'.join(
+            line for line in stripped.splitlines()
+            if not line.lstrip().startswith('#')
+        )
 
-        # Skip PREFIX declarations to find actual query type
-        lines = query_stripped.split('\n')
-        query_body = ''
-        for line in lines:
-            line_upper = line.strip().upper()
-            if line_upper and not line_upper.startswith('PREFIX'):
-                query_body = line_upper
-                break
+        if self._UPDATE_KEYWORDS.search(body):
+            return False
 
-        valid_starts = ('SELECT', 'CONSTRUCT', 'ASK', 'DESCRIBE')
-        return any(query_body.startswith(s) for s in valid_starts)
+        # Strip the prologue (PREFIX/BASE declarations) to find the query form.
+        body = self._PROLOGUE.sub('', body)
+        return self._QUERY_FORM.match(body) is not None

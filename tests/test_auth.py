@@ -107,47 +107,51 @@ class TestLoginRequired:
         """Test credentials page accessible when logged in."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {}
 
         response = client.get('/auth/credentials')
         assert response.status_code == 200
         assert b'Endpoint Credentials' in response.data
 
 
+SAMPLE_DISCOVERED_ENDPOINT = {
+    'endpoint_url': 'http://example.org/sparql',
+    'dataset_uri': 'http://example.org/dataset/1',
+    'dataset_title': 'Test Dataset',
+    'fdp_uri': 'http://example.org',
+    'fdp_title': 'Test FDP',
+    'catalog_title': 'Test Catalog',
+    'distribution_title': 'SPARQL endpoint',
+}
+
+
 class TestCredentialsManagement:
     """Tests for endpoint credentials management."""
 
-    def test_list_credentials_no_fdps(self, client):
-        """Test listing credentials when no FDPs configured."""
+    def test_list_credentials_no_endpoints(self, client):
+        """Test listing credentials when nothing is discovered or configured."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {}
 
         response = client.get('/auth/credentials')
         assert response.status_code == 200
-        assert b'No FDPs Configured' in response.data
+        assert b'No Endpoints Discovered' in response.data
 
-    def test_list_credentials_with_fdps(self, client):
-        """Test listing credentials with FDPs."""
+    def test_list_credentials_with_discovered_endpoints(self, client):
+        """Test listing credentials with discovered endpoints."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
+            sess['discovered_endpoints'] = {'hash1': SAMPLE_DISCOVERED_ENDPOINT}
             sess['endpoint_credentials'] = {}
 
         response = client.get('/auth/credentials')
         assert response.status_code == 200
         assert b'Test FDP' in response.data
-        assert b'Without Endpoints' in response.data
+        assert b'Discovered Endpoints' in response.data
 
     def test_list_credentials_shows_configured(self, client):
         """Test that configured credentials are shown."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
             sess['endpoint_credentials'] = {
                 'hash1': {
                     'sparql_endpoint': 'http://example.org/sparql',
@@ -162,34 +166,30 @@ class TestCredentialsManagement:
         assert b'http://example.org/sparql' in response.data
 
     def test_configure_credentials_page_loads(self, client):
-        """Test configure credentials page loads."""
+        """Test configure credentials page loads for a discovered endpoint."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
+            sess['discovered_endpoints'] = {'hash1': SAMPLE_DISCOVERED_ENDPOINT}
 
         response = client.get('/auth/credentials/hash1')
         assert response.status_code == 200
         assert b'Configure SPARQL Credentials' in response.data
         assert b'Test FDP' in response.data
+        assert b'http://example.org/sparql' in response.data
 
-    def test_configure_credentials_fdp_not_found(self, client):
-        """Test configure credentials with invalid FDP hash."""
+    def test_configure_credentials_endpoint_not_found(self, client):
+        """Test configure credentials with unknown endpoint hash."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {}
 
         response = client.get('/auth/credentials/nonexistent', follow_redirects=True)
-        assert b'FDP not found' in response.data
+        assert b'Endpoint not found' in response.data
 
     def test_configure_credentials_save(self, client):
         """Test saving credentials."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
+            sess['discovered_endpoints'] = {'hash1': SAMPLE_DISCOVERED_ENDPOINT}
 
         response = client.post('/auth/credentials/hash1', data={
             'sparql_endpoint': 'http://example.org/sparql',
@@ -211,9 +211,7 @@ class TestCredentialsManagement:
         """Test saving credentials without endpoint URL."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
+            sess['discovered_endpoints'] = {'hash1': SAMPLE_DISCOVERED_ENDPOINT}
 
         response = client.post('/auth/credentials/hash1', data={
             'sparql_endpoint': '',
@@ -228,9 +226,6 @@ class TestCredentialsManagement:
         """Test that existing password is preserved if not provided."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
             sess['endpoint_credentials'] = {
                 'hash1': {
                     'fdp_uri': 'http://example.org',
@@ -258,9 +253,6 @@ class TestCredentialsManagement:
         """Test removing credentials."""
         with client.session_transaction() as sess:
             sess['user'] = {'username': 'test', 'is_authenticated': True}
-            sess['fdps'] = {
-                'hash1': {'uri': 'http://example.org', 'title': 'Test FDP'}
-            }
             sess['endpoint_credentials'] = {
                 'hash1': {'sparql_endpoint': 'http://example.org/sparql'}
             }
