@@ -83,6 +83,41 @@ class TestSPARQLIndex:
         assert b'Test FDP' in response.data
         assert b'http://example.org/sparql' in response.data
 
+    def test_sparql_index_discovers_endpoints_from_cache(self, client, app):
+        """Endpoints are derived from cached distributions even when the session has none."""
+        from app.services.cache import FDPCacheEntry
+
+        app.fdp_cache._entries['http://example.org'] = FDPCacheEntry(
+            fdp_dict={'uri': 'http://example.org', 'title': 'Test FDP'},
+            datasets=[{
+                'uri': 'http://example.org/dataset/1',
+                'title': 'Test Dataset',
+                'catalog_uri': 'http://example.org/catalog/1',
+                'fdp_uri': 'http://example.org',
+                'fdp_title': 'Test FDP',
+                'distributions': [{
+                    'uri': 'http://example.org/dist/1',
+                    'title': 'SPARQL endpoint',
+                    'is_sparql_endpoint': True,
+                    'endpoint_url': 'http://example.org/sparql',
+                }],
+            }],
+        )
+        try:
+            with client.session_transaction() as sess:
+                sess['user'] = {'username': 'test', 'password': 'pass', 'is_authenticated': True}
+                sess['selection'] = [
+                    {'uri': 'http://example.org/dataset/1', 'title': 'Test Dataset'},
+                ]
+                sess['discovered_endpoints'] = {}
+
+            response = client.get('/sparql/')
+            assert response.status_code == 200
+            assert b'Available Endpoints' in response.data
+            assert b'http://example.org/sparql' in response.data
+        finally:
+            app.fdp_cache._entries.pop('http://example.org', None)
+
     def test_sparql_index_filters_by_selection(self, client):
         """Test that endpoints not in the selection are excluded."""
         ep_url = 'http://other.org/sparql'

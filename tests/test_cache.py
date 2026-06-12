@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.models import Dataset, FairDataPoint
-from app.services.cache import FDPCache
+from app.services.cache import FDPCache, FDPCacheEntry
 
 
 def _make_fdp(uri: str, title: str = 'Test FDP', catalogs=None) -> FairDataPoint:
@@ -46,6 +46,7 @@ def cache_config():
         'FDP_VERIFY_SSL': False,
         'CACHE_REFRESH_INTERVAL': 0.1,
         'DEFAULT_FDPS': [],
+        'TESTING': True,  # disables the disk snapshot
     }
 
 
@@ -195,12 +196,11 @@ class TestPopulateDefaults:
 
         def _fake_fetch(uri):
             fetched.append(uri)
-            from app.services.cache import FDPCacheEntry
-            from datetime import datetime
+            from datetime import datetime, timezone
             entry = FDPCacheEntry(
                 fdp_dict={'uri': uri, 'title': uri},
                 datasets=[],
-                last_updated=datetime.utcnow(),
+                last_updated=datetime.now(timezone.utc),
             )
             with cache._lock:
                 cache._entries[uri] = entry
@@ -216,6 +216,68 @@ class TestPopulateDefaults:
         cache = FDPCache(cache_config)
         cache.populate_defaults()  # should not raise
         assert cache.get_cache_info()['fdp_count'] == 0
+
+    def test_populate_defaults_skips_already_cached(self, cache_config):
+        """FDPs restored from a snapshot must not be re-fetched at startup."""
+        cache_config = dict(cache_config, DEFAULT_FDPS=[
+            'https://a.org/fdp', 'https://b.org/fdp'
+        ])
+        cache = FDPCache(cache_config)
+        cache._entries['https://a.org/fdp'] = FDPCacheEntry(
+            fdp_dict={'uri': 'https://a.org/fdp', 'title': 'A'}
+        )
+
+        fetched = []
+        with patch.object(cache, 'fetch_and_cache_fdp', side_effect=fetched.append):
+            cache.populate_defaults()
+
+        assert fetched == ['https://b.org/fdp']
+
+
+class TestSnapshot:
+    def _config(self, tmp_path, **extra):
+        return {
+            'FDP_TIMEOUT': 5,
+            'FDP_VERIFY_SSL': False,
+            'CACHE_REFRESH_INTERVAL': 0.1,
+            'DEFAULT_FDPS': [],
+            'CACHE_SNAPSHOT_FILE': str(tmp_path / 'snap.json'),
+            **extra,
+        }
+
+    def test_snapshot_roundtrip(self, tmp_path):
+        config = self._config(tmp_path)
+        cache = FDPCache(config)
+        fdp = _make_fdp('https://example.org/fdp')
+        ds = _make_dataset('https://example.org/ds/1', fdp.uri)
+        with _install_mock_client(cache, fdp, [ds]):
+            cache.fetch_and_cache_fdp(fdp.uri)  # saves the snapshot as a side effect
+
+        restored = FDPCache(config)
+        assert restored.load_snapshot() == 1
+        entry = restored.get_entry(fdp.uri)
+        assert entry is not None
+        assert entry.fdp_dict['uri'] == fdp.uri
+        assert [d['uri'] for d in entry.datasets] == [ds.uri]
+        assert entry.last_updated is not None
+        assert entry.error is None
+
+    def test_snapshot_disabled_under_testing(self, tmp_path):
+        config = self._config(tmp_path, TESTING=True)
+        cache = FDPCache(config)
+        cache._entries['https://x.org/fdp'] = FDPCacheEntry(
+            fdp_dict={'uri': 'https://x.org/fdp'}
+        )
+        cache.save_snapshot()
+        assert not (tmp_path / 'snap.json').exists()
+        assert FDPCache(config).load_snapshot() == 0
+
+    def test_load_snapshot_missing_file_returns_zero(self, tmp_path):
+        assert FDPCache(self._config(tmp_path)).load_snapshot() == 0
+
+    def test_load_snapshot_corrupt_file_returns_zero(self, tmp_path):
+        (tmp_path / 'snap.json').write_text('not json{')
+        assert FDPCache(self._config(tmp_path)).load_snapshot() == 0
 
 
 class TestBackgroundRefresh:

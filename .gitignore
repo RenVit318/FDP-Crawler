@@ -4,6 +4,9 @@ app/data/admin.json
 # Dashboard cached data
 app/data/dashboard/
 
+# FDP cache disk snapshot
+app/data/fdp_cache_snapshot.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

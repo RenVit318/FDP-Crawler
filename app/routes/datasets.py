@@ -4,7 +4,7 @@ import logging
 
 from flask import Blueprint, current_app, render_template, request, session, flash, redirect, url_for
 
-from app.models import Dataset, ContactPoint, Distribution
+from app.models import Dataset
 from app.services import DatasetService
 from app.services.admin_service import get_page_content
 from app.services.dataset_service import application_key
@@ -13,47 +13,6 @@ from app.utils import get_uri_hash
 logger = logging.getLogger(__name__)
 
 datasets_bp = Blueprint('datasets', __name__, url_prefix='/datasets')
-
-
-def dataset_from_dict(data: dict) -> Dataset:
-    """Reconstruct Dataset from dictionary."""
-    contact_data = data.get('contact_point')
-    contact_point = None
-    if contact_data:
-        contact_point = ContactPoint(
-            name=contact_data.get('name'),
-            email=contact_data.get('email'),
-            url=contact_data.get('url'),
-        )
-
-    raw_dists = data.get('distributions', [])
-    distributions = []
-    for d in raw_dists:
-        if isinstance(d, dict):
-            distributions.append(Distribution.from_dict(d))
-        elif isinstance(d, str):
-            distributions.append(Distribution(uri=d))
-
-    return Dataset(
-        uri=data['uri'],
-        title=data['title'],
-        catalog_uri=data['catalog_uri'],
-        catalog_title=data.get('catalog_title'),
-        catalog_homepage=data.get('catalog_homepage'),
-        fdp_uri=data['fdp_uri'],
-        fdp_title=data['fdp_title'],
-        description=data.get('description'),
-        publisher=data.get('publisher'),
-        creator=data.get('creator'),
-        issued=None,
-        modified=None,
-        themes=data.get('themes', []),
-        theme_labels=data.get('theme_labels', []),
-        keywords=data.get('keywords', []),
-        contact_point=contact_point,
-        landing_page=data.get('landing_page'),
-        distributions=distributions,
-    )
 
 
 def _get_cached_datasets() -> list:
@@ -103,7 +62,7 @@ def browse():
     hides/shows rows as the user interacts.
     """
     datasets_dicts = _get_cached_datasets()
-    datasets = [dataset_from_dict(d) for d in datasets_dicts]
+    datasets = [Dataset.from_dict(d) for d in datasets_dicts]
 
     service = DatasetService()
 
@@ -199,7 +158,7 @@ def detail(uri_hash: str):
         flash('Dataset not found.', 'error')
         return redirect(url_for('datasets.browse'))
 
-    dataset = dataset_from_dict(dataset_dict)
+    dataset = Dataset.from_dict(dataset_dict)
     _store_discovered_endpoints(dataset)
 
     # Find siblings — other cached datasets in the same application.
@@ -251,6 +210,7 @@ def add_application_to_selection():
             continue
         if d['uri'] in existing_uris:
             continue
+        _store_discovered_endpoints(Dataset.from_dict(d))
         selection.append(_selection_item(d))
         existing_uris.add(d['uri'])
         added += 1
@@ -291,7 +251,7 @@ def add_multiple_to_selection():
         d = by_hash.get(h)
         if not d or d['uri'] in existing_uris:
             continue
-        _store_discovered_endpoints(dataset_from_dict(d))
+        _store_discovered_endpoints(Dataset.from_dict(d))
         selection.append(_selection_item(d))
         existing_uris.add(d['uri'])
         added += 1
@@ -306,6 +266,20 @@ def add_multiple_to_selection():
 def _normalize_sparql_url(url: str) -> str:
     """Append /sparql to a SPARQL endpoint URL if not already present."""
     return url if url.rstrip('/').endswith('/sparql') else url.rstrip('/') + '/sparql'
+
+
+def sync_discovered_endpoints() -> None:
+    """Derive SPARQL endpoints for every selection dataset from the cache.
+
+    Self-heals sessions whose selection predates endpoint discovery and picks
+    up endpoints that appeared after a background cache refresh, so users
+    never hit the 'visit the detail page first' dead-end.
+    """
+    cache = current_app.fdp_cache
+    for item in session.get('selection', []):
+        d = cache.get_dataset_by_uri(item['uri'])
+        if d:
+            _store_discovered_endpoints(Dataset.from_dict(d))
 
 
 def _store_discovered_endpoints(dataset: Dataset) -> None:
@@ -350,7 +324,7 @@ def add_to_selection(uri_hash: str):
             flash('Dataset is already in your selection.', 'info')
     else:
         # Full dataset (with distributions) comes from cache — no extra HTTP.
-        _store_discovered_endpoints(dataset_from_dict(dataset_dict))
+        _store_discovered_endpoints(Dataset.from_dict(dataset_dict))
         selection.append(_selection_item(dataset_dict))
         session['selection'] = selection
         session.modified = True

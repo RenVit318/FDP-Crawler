@@ -114,6 +114,44 @@ class Dataset:
         """Get distributions that are SPARQL endpoints."""
         return [d for d in self.distributions if d.is_sparql_endpoint]
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Dataset':
+        """Reconstruct a Dataset from its cache/session dict representation."""
+        contact_data = data.get('contact_point')
+        contact_point = None
+        if contact_data:
+            contact_point = ContactPoint(
+                name=contact_data.get('name'),
+                email=contact_data.get('email'),
+                url=contact_data.get('url'),
+            )
+
+        distributions = []
+        for d in data.get('distributions', []):
+            if isinstance(d, dict):
+                distributions.append(Distribution.from_dict(d))
+            elif isinstance(d, str):
+                distributions.append(Distribution(uri=d))
+
+        return cls(
+            uri=data['uri'],
+            title=data['title'],
+            catalog_uri=data['catalog_uri'],
+            catalog_title=data.get('catalog_title'),
+            catalog_homepage=data.get('catalog_homepage'),
+            fdp_uri=data['fdp_uri'],
+            fdp_title=data['fdp_title'],
+            description=data.get('description'),
+            publisher=data.get('publisher'),
+            creator=data.get('creator'),
+            themes=data.get('themes', []),
+            theme_labels=data.get('theme_labels', []),
+            keywords=data.get('keywords', []),
+            contact_point=contact_point,
+            landing_page=data.get('landing_page'),
+            distributions=distributions,
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {

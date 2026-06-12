@@ -11,6 +11,7 @@ from flask import (
 )
 
 from app.routes.auth import login_required
+from app.routes.datasets import sync_discovered_endpoints
 from app.services import SPARQLClient
 from app.models import SPARQLQuery, EndpointCredentials
 from app.config import Config
@@ -21,6 +22,7 @@ sparql_bp = Blueprint('sparql', __name__, url_prefix='/sparql')
 
 def _get_selection_endpoints() -> list:
     """Get SPARQL endpoints from datasets currently in the selection."""
+    sync_discovered_endpoints()
     selection = session.get('selection', [])
     discovered = session.get('discovered_endpoints', {})
 

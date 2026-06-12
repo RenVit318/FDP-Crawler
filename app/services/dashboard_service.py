@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -12,7 +13,7 @@ from flask import current_app
 
 from app.config import Config
 from app.models.auth import EndpointCredentials
-from app.services.fdp_client import FDPClient, FDPError
+from app.models.dataset import Dataset
 from app.services.dataset_service import DatasetService
 from app.services.sparql_client import SPARQLClient, SPARQLError
 
@@ -121,15 +122,13 @@ def _transform_stats(bindings: List[Dict]) -> Dict[str, Any]:
 
 
 def get_fdp_themes() -> List[Dict[str, Any]]:
-    """Extract live themes from the configured FDPs."""
+    """Extract themes from the cached FDP datasets (no remote crawling)."""
     try:
-        fdp_client = FDPClient(
-            timeout=Config.FDP_TIMEOUT,
-            verify_ssl=Config.FDP_VERIFY_SSL,
-        )
-        dataset_service = DatasetService(fdp_client)
-        datasets = dataset_service.get_all_datasets(list(current_app.config.get('DEFAULT_FDPS', [])))
-        themes = dataset_service.get_available_themes(datasets)
+        datasets = [
+            Dataset.from_dict(d)
+            for d in current_app.fdp_cache.get_all_datasets()
+        ]
+        themes = DatasetService().get_available_themes(datasets)
         return [{'label': t.label, 'uri': t.uri, 'count': t.count} for t in themes]
     except Exception as e:
         logger.error(f'Failed to extract FDP themes: {e}')
@@ -194,7 +193,6 @@ def _derive_dashboard_url(raw_endpoint_url: str) -> Optional[str]:
 
     The dashboard repo name comes from Config.DASHBOARD_REPO_NAME.
     """
-    import re
     repo_name = Config.DASHBOARD_REPO_NAME
     # Match AllegroGraph URL pattern: .../repositories/<name>... and extract server base
     match = re.match(r'(https?://[^/]+/repositories/)[^/]+(/sparql)?.*', raw_endpoint_url)
@@ -205,11 +203,12 @@ def _derive_dashboard_url(raw_endpoint_url: str) -> Optional[str]:
 
 
 def discover_endpoints() -> List[Dict[str, str]]:
-    """Discover dashboard SPARQL endpoints by crawling all default FDPs.
+    """Discover dashboard SPARQL endpoints from the process-wide FDP cache.
 
-    Reuses the same FDP -> catalog -> dataset -> distribution pipeline that
-    the dataset browse page uses.  Finds all AllegroGraph SPARQL endpoints,
-    then derives the dashboard repository URL for each unique AG server.
+    The cache already holds every dataset and distribution for the configured
+    FDPs (populated at startup and refreshed in the background), so no
+    crawling happens here.  Finds all AllegroGraph SPARQL endpoints, then
+    derives the dashboard repository URL for each unique AG server.
 
     Each AG server is expected to have a dashboard repository (configured
     via DASHBOARD_REPO_NAME) that contains pre-computed aggregate statistics.
@@ -217,28 +216,21 @@ def discover_endpoints() -> List[Dict[str, str]]:
     Returns:
         List of endpoint dicts with 'url' and 'label' keys.
     """
-    logger.info('Starting SPARQL endpoint discovery from FDPs')
+    logger.info('Starting SPARQL endpoint discovery from FDP cache')
+    cache = current_app.fdp_cache
 
-    fdp_client = FDPClient(
-        timeout=Config.FDP_TIMEOUT,
-        verify_ssl=Config.FDP_VERIFY_SSL,
-    )
-    dataset_service = DatasetService(fdp_client)
-
-    fdp_uris = list(current_app.config.get('DEFAULT_FDPS', []))
-
-    # Also include any FDP URIs from existing config (manual additions)
+    # Manually configured extra FDPs may not be cached yet — fetch them once;
+    # afterwards the background refresh keeps them up to date like the defaults.
     config = get_config()
     for ep in config.get('extra_fdps', []):
         uri = ep if isinstance(ep, str) else ep.get('url', '')
-        if uri and uri not in fdp_uris:
-            fdp_uris.append(uri)
+        if uri and cache.get_fdp(uri) is None:
+            cache.fetch_and_cache_fdp(uri)
 
-    try:
-        datasets = dataset_service.get_all_datasets(fdp_uris)
-    except Exception as e:
-        logger.error(f'Failed to fetch datasets for endpoint discovery: {e}')
-        return get_endpoints()  # fall back to whatever was previously saved
+    datasets = cache.get_all_datasets()
+    if not datasets:
+        logger.warning('FDP cache is empty, keeping previously saved endpoints')
+        return get_endpoints()
 
     # Extract unique AG servers from discovered SPARQL endpoints,
     # then derive the dashboard repo URL for each.
@@ -246,10 +238,10 @@ def discover_endpoints() -> List[Dict[str, str]]:
     endpoints = []
 
     for ds in datasets:
-        for dist in ds.distributions:
-            if not dist.is_sparql_endpoint:
+        for dist in ds.get('distributions', []):
+            if not isinstance(dist, dict) or not dist.get('is_sparql_endpoint'):
                 continue
-            url = dist.endpoint_url or dist.access_url
+            url = dist.get('endpoint_url') or dist.get('access_url')
             if not url:
                 continue
 
@@ -259,7 +251,6 @@ def discover_endpoints() -> List[Dict[str, str]]:
             seen_servers.add(dashboard_url)
 
             # Use the AG server hostname as the label
-            import re
             server_match = re.match(r'https?://([^/]+)', url)
             server_label = server_match.group(1) if server_match else url
 
@@ -271,7 +262,7 @@ def discover_endpoints() -> List[Dict[str, str]]:
                 'derived_from': url,
             })
 
-    logger.info(f'Discovered {len(endpoints)} SPARQL endpoint(s) from {len(fdp_uris)} FDP(s)')
+    logger.info(f'Discovered {len(endpoints)} SPARQL endpoint(s) from cache')
 
     # Merge with any manually added endpoints (preserve manual entries)
     existing = config.get('endpoints', [])

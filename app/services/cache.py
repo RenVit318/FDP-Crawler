@@ -1,6 +1,8 @@
 """In-memory cache for FDP metadata and datasets with background refresh."""
 
+import json
 import logging
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -11,6 +13,11 @@ from app.services.fdp_client import FDPClient, FDPError
 
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_SNAPSHOT_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'data', 'fdp_cache_snapshot.json',
+)
 
 
 @dataclass
@@ -41,6 +48,14 @@ class FDPCache:
         self._verify_ssl = app_config.get('FDP_VERIFY_SSL', True)
         self._refresh_interval = app_config.get('CACHE_REFRESH_INTERVAL', 300)
         self._default_fdps = list(app_config.get('DEFAULT_FDPS', []))
+
+        # Disk snapshot lets restarts serve data immediately instead of
+        # cold-starting against remote FDPs. Disabled under TESTING.
+        self._snapshot_file = (
+            app_config.get('CACHE_SNAPSHOT_FILE') or _DEFAULT_SNAPSHOT_FILE
+        )
+        self._snapshot_enabled = not app_config.get('TESTING', False)
+        self._snapshot_lock = threading.Lock()
 
     def _make_client(self) -> FDPClient:
         return FDPClient(timeout=self._timeout, verify_ssl=self._verify_ssl)
@@ -87,6 +102,7 @@ class FDPCache:
             logger.info(
                 f"Cached FDP {uri}: {fdp.title} ({len(datasets)} datasets)"
             )
+            self.save_snapshot()
             return entry
         except FDPError as e:
             logger.warning(f"Failed to refresh FDP {uri}: {e}")
@@ -129,6 +145,14 @@ class FDPCache:
                     out.extend(entry.datasets)
             return out
 
+    def get_all_datasets(self) -> List[Dict[str, Any]]:
+        """Return every cached dataset dict across all FDPs."""
+        with self._lock:
+            out: List[Dict[str, Any]] = []
+            for entry in self._entries.values():
+                out.extend(entry.datasets)
+            return out
+
     def get_dataset_by_uri(self, dataset_uri: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             for entry in self._entries.values():
@@ -160,12 +184,75 @@ class FDPCache:
         with self._lock:
             return self._entries.get(uri)
 
-    def populate_defaults(self) -> None:
-        """Fetch all DEFAULT_FDPS concurrently (blocking)."""
-        if not self._default_fdps:
+    def save_snapshot(self) -> None:
+        """Persist all entries to disk so the next startup skips the cold fetch."""
+        if not self._snapshot_enabled:
             return
-        logger.info(f"Populating cache with {len(self._default_fdps)} default FDP(s)")
-        self._refresh_all(self._default_fdps)
+        with self._lock:
+            payload = {
+                uri: {
+                    'fdp_dict': e.fdp_dict,
+                    'datasets': e.datasets,
+                    'last_updated': (
+                        e.last_updated.isoformat() if e.last_updated else None
+                    ),
+                    'error': e.error,
+                }
+                for uri, e in self._entries.items()
+            }
+        try:
+            with self._snapshot_lock:
+                os.makedirs(os.path.dirname(self._snapshot_file), exist_ok=True)
+                tmp = self._snapshot_file + '.tmp'
+                with open(tmp, 'w') as f:
+                    json.dump(payload, f)
+                os.replace(tmp, self._snapshot_file)
+        except OSError as e:
+            logger.warning(f"Could not write cache snapshot: {e}")
+
+    def load_snapshot(self) -> int:
+        """Load entries from the disk snapshot. Returns the number loaded."""
+        if not self._snapshot_enabled or not os.path.exists(self._snapshot_file):
+            return 0
+        try:
+            with open(self._snapshot_file, 'r') as f:
+                payload = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Could not read cache snapshot: {e}")
+            return 0
+
+        entries = {}
+        for uri, data in payload.items():
+            last_updated = None
+            if data.get('last_updated'):
+                try:
+                    last_updated = datetime.fromisoformat(data['last_updated'])
+                except ValueError:
+                    pass
+            entries[uri] = FDPCacheEntry(
+                fdp_dict=data.get('fdp_dict', {}),
+                datasets=data.get('datasets', []),
+                last_updated=last_updated,
+                error=data.get('error'),
+            )
+
+        with self._lock:
+            self._entries.update(entries)
+        logger.info(f"Loaded {len(entries)} FDP(s) from cache snapshot")
+        return len(entries)
+
+    def populate_defaults(self) -> None:
+        """Fetch DEFAULT_FDPS not already in the cache, concurrently (blocking).
+
+        FDPs restored from the snapshot are skipped — the background refresh
+        brings them up to date without delaying startup.
+        """
+        with self._lock:
+            missing = [u for u in self._default_fdps if u not in self._entries]
+        if not missing:
+            return
+        logger.info(f"Populating cache with {len(missing)} default FDP(s)")
+        self._refresh_all(missing)
 
     def _refresh_all(self, uris: List[str]) -> None:
         """Re-fetch every URI in parallel. Safe for concurrent callers."""

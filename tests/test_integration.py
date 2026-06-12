@@ -306,7 +306,7 @@ class TestSessionPersistence:
     def test_fdp_persists_in_session(self, client, app):
         """FDP URIs live in the session; titles are looked up from the process-wide cache."""
         from app.services.cache import FDPCacheEntry
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         app.fdp_cache._entries['https://example.org'] = FDPCacheEntry(
             fdp_dict={
@@ -322,7 +322,7 @@ class TestSessionPersistence:
                 'error_message': None,
             },
             datasets=[],
-            last_updated=datetime.utcnow(),
+            last_updated=datetime.now(timezone.utc),
         )
         try:
             with client.session_transaction() as sess:

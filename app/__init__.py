@@ -133,6 +133,7 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
             app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
         )
         if not is_reloader_parent:
+            app.fdp_cache.load_snapshot()
             app.fdp_cache.populate_defaults()
             app.fdp_cache.start_background_refresh()
 

@@ -13,6 +13,8 @@ from flask import (
     url_for,
 )
 
+from app.routes.datasets import sync_discovered_endpoints
+
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -95,6 +97,7 @@ def logout() -> str:
 @login_required
 def list_credentials() -> str:
     """List configured endpoint credentials and discovered endpoints."""
+    sync_discovered_endpoints()
     credentials = session.get('endpoint_credentials', {})
     discovered_endpoints = session.get('discovered_endpoints', {})
     return render_template(
