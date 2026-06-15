@@ -14,9 +14,9 @@ from app.services.fdp_client import FDPClient, FDPError
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SNAPSHOT_FILE = os.path.join(
+_SNAPSHOT_DATA_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    'data', 'fdp_cache_snapshot.json',
+    'data',
 )
 
 
@@ -51,9 +51,11 @@ class FDPCache:
 
         # Disk snapshot lets restarts serve data immediately instead of
         # cold-starting against remote FDPs. Disabled under TESTING.
-        self._snapshot_file = (
-            app_config.get('CACHE_SNAPSHOT_FILE') or _DEFAULT_SNAPSHOT_FILE
+        dataspace = app_config.get('DATASPACE', 'default')
+        default_snapshot = os.path.join(
+            _SNAPSHOT_DATA_DIR, f'fdp_cache_snapshot_{dataspace}.json'
         )
+        self._snapshot_file = app_config.get('CACHE_SNAPSHOT_FILE') or default_snapshot
         self._snapshot_enabled = not app_config.get('TESTING', False)
         self._snapshot_lock = threading.Lock()
 

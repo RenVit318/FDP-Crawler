@@ -202,15 +202,17 @@ class SPARQLClient:
         if not stripped:
             return False
 
-        # Drop comment lines so e.g. '# delete later' doesn't trip the blocklist.
-        body = '\n'.join(
-            line for line in stripped.splitlines()
-            if not line.lstrip().startswith('#')
-        )
+        # Strip the prologue first so its IRIs don't interfere with later passes.
+        body = self._PROLOGUE.sub('', stripped)
+
+        # Strip comments, IRI refs, and string literals so keywords appearing
+        # in those contexts don't trip the blocklist.
+        body = re.sub(r'#[^\n]*', '', body)
+        body = re.sub(r'<[^>]*>', '', body)
+        body = re.sub(r'"(?:[^"\\]|\\.)*"', '', body)
+        body = re.sub(r"'(?:[^'\\]|\\.)*'", '', body)
 
         if self._UPDATE_KEYWORDS.search(body):
             return False
 
-        # Strip the prologue (PREFIX/BASE declarations) to find the query form.
-        body = self._PROLOGUE.sub('', body)
         return self._QUERY_FORM.match(body) is not None

@@ -46,6 +46,8 @@ def init_scheduler(app):
         try:
             fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except (BlockingIOError, OSError):
+            _lock_file.close()
+            _lock_file = None
             logger.debug('Another worker owns the dashboard scheduler, skipping')
             return
 

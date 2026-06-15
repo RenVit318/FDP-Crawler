@@ -265,7 +265,8 @@ def add_multiple_to_selection():
 
 def _normalize_sparql_url(url: str) -> str:
     """Append /sparql to a SPARQL endpoint URL if not already present."""
-    return url if url.rstrip('/').endswith('/sparql') else url.rstrip('/') + '/sparql'
+    base = url.rstrip('/')
+    return base if base.endswith('/sparql') else base + '/sparql'
 
 
 def sync_discovered_endpoints() -> None:

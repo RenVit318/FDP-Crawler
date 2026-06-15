@@ -154,12 +154,18 @@ def query() -> str:
             parts = [ep.get('fdp_title', ''), ep.get('catalog_title', ''), ep.get('dataset_title', '')]
             fdp_titles[endpoint_url] = ' / '.join(p for p in parts if p) or endpoint_url
 
-            configured = endpoint_creds.get(ep_hash, {})
+            if ep_hash in endpoint_creds:
+                configured = endpoint_creds[ep_hash]
+                cred_username = configured.get('username', '')
+                cred_password = configured.get('password', '')
+            else:
+                cred_username = user.get('username', '')
+                cred_password = user.get('password', '')
             credentials_map[endpoint_url] = EndpointCredentials(
                 fdp_uri=ep.get('fdp_uri', ''),
                 sparql_endpoint=endpoint_url,
-                username=configured.get('username') or user.get('username', ''),
-                password=configured.get('password') or user.get('password', ''),
+                username=cred_username,
+                password=cred_password,
             )
 
         # Execute federated query

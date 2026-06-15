@@ -5,6 +5,7 @@ from typing import Callable, Any
 
 from flask import (
     Blueprint,
+    current_app,
     render_template,
     request,
     session,
@@ -126,9 +127,11 @@ def configure_credentials(fdp_hash: str) -> str:
         }
         pre_filled_endpoint = discovered_ep['endpoint_url']
     else:
+        fdp_uri = existing.get('fdp_uri', '')
+        cached_fdp = current_app.fdp_cache.get_fdp(fdp_uri) if fdp_uri else None
         fdp = {
-            'uri': existing.get('fdp_uri', ''),
-            'title': existing.get('sparql_endpoint', 'Configured endpoint'),
+            'uri': fdp_uri,
+            'title': (cached_fdp or {}).get('title') or 'Configured endpoint',
             'description': None,
         }
         pre_filled_endpoint = existing.get('sparql_endpoint', '')
