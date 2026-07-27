@@ -63,6 +63,9 @@ def _load_dataspace(app: Flask) -> None:
                 'contact_email': app.config.get('CONTACT_EMAIL', ''),
                 'brand_logos': app.config.get('BRAND_LOGOS', []),
                 'dataspace': name,
+                'banner': app.config.get('SITE_BANNER', ''),
+                # Templates hide the login/logout controls on auto-login instances.
+                'auto_login': bool(app.config.get('AUTO_LOGIN_USERNAME')),
             }
         }
 
@@ -141,6 +144,18 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
     @app.before_request
     def init_session():
         from flask import session, current_app
+
+        # Auto-login instances (see AUTO_LOGIN_USERNAME) sign every visitor in as
+        # the configured user, so credentials never have to be typed. Runs before
+        # anything reads session['user'] — including the sandbox visibility gate.
+        auto_login_username = current_app.config.get('AUTO_LOGIN_USERNAME')
+        if auto_login_username and not session.get('user'):
+            session['user'] = {
+                'username': auto_login_username,
+                'password': current_app.config.get('AUTO_LOGIN_PASSWORD', ''),
+                'is_authenticated': True,
+            }
+            session.modified = True
 
         # Migrate legacy session['fdps'] (dict of full FDP data) → session['fdp_uris'] (list).
         if 'fdp_uris' not in session:

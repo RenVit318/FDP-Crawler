@@ -35,6 +35,16 @@ class Config:
     DASHBOARD_SPARQL_TIMEOUT: int = int(os.environ.get('DASHBOARD_SPARQL_TIMEOUT', 120))
     DASHBOARD_REPO_NAME: str = os.environ.get('DASHBOARD_REPO_NAME', 'Dashboard')
 
+    # Auto-login settings
+    #
+    # When AUTO_LOGIN_USERNAME is set, every visitor to this instance is signed in
+    # as that user automatically and the login/logout controls are hidden. Intended
+    # for a dedicated deployment (e.g. the sandbox instance) where the audience
+    # should never type credentials; the password stays in the server environment.
+    # Leave unset on public instances — they keep the normal login flow.
+    AUTO_LOGIN_USERNAME: str = os.environ.get('AUTO_LOGIN_USERNAME', '')
+    AUTO_LOGIN_PASSWORD: str = os.environ.get('AUTO_LOGIN_PASSWORD', '')
+
     # Flask session settings
     SESSION_TYPE: str = 'filesystem'
     SESSION_COOKIE_HTTPONLY: bool = True

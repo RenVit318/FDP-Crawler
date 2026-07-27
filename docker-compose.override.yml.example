@@ -1,0 +1,49 @@
+# Example override for running the public HDS instance and the sandbox instance
+# side by side on one host. Copy to docker-compose.override.yml (gitignored) and
+# fill in the secrets; `docker compose up -d` then starts both services.
+#
+# Reverse proxy (nginx/Caddy) terminates TLS and routes:
+#   humanitariandataspace.com         -> 127.0.0.1:5000   (web, public)
+#   sandbox.humanitariandataspace.com -> 127.0.0.1:5001   (sandbox, auto-login)
+#
+# Use a subdomain rather than a /sandbox path: session cookies are host-only, so
+# the two instances get separate session jars with no extra configuration. Served
+# under one hostname they would share a cookie and log each other's visitors out.
+
+version: '3.8'
+
+services:
+  # Public instance — normal login flow, sandbox datasets hidden.
+  web:
+    environment:
+      - DATASPACE=humanitarian
+      - SECRET_KEY=${SECRET_KEY:?set a strong secret in .env}
+
+  # Sandbox instance — every visitor is signed in as sandbox_query, which makes
+  # the sandbox datasets, their SPARQL endpoints, and the sandbox preset queries
+  # visible. The password stays in this file and never gets typed on screen.
+  sandbox:
+    build: .
+    ports:
+      - "127.0.0.1:5001:5000"
+    environment:
+      - DATASPACE=humanitarian-sandbox
+      # Must differ from the public instance so a leaked cookie from one is not
+      # valid on the other.
+      - SECRET_KEY=${SANDBOX_SECRET_KEY:?set a separate sandbox secret in .env}
+      - AUTO_LOGIN_USERNAME=sandbox_query
+      - AUTO_LOGIN_PASSWORD=${SANDBOX_QUERY_PASSWORD:?set the sandbox_query password in .env}
+      - FLASK_ENV=production
+      - LOG_LEVEL=INFO
+    volumes:
+      - sandbox_dashboard_data:/app/app/data/dashboard
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  sandbox_dashboard_data:

@@ -64,6 +64,21 @@ DATASPACE=africa-health docker-compose up   # Africa Health Data Space
 
 The selected dataspace's `config.py` is loaded into Flask's config, its `static/` directory is registered at `/dataspace-static/`, and its `templates/` directory (if present) can override any base template. Page content in `pages/*.json` seeds the admin-editable content on first boot; subsequent edits persist in `app/data/admin.json`.
 
+### The sandbox instance
+
+`dataspaces/humanitarian-sandbox/` is the Humanitarian Data Space with one difference: it is deployed with `AUTO_LOGIN_USERNAME=sandbox_query`, so every visitor is signed in as the sandbox user without typing anything. That matters because sandbox datasets — those whose title contains `sandbox` — are hidden from every other session (`app/routes/datasets.py`, `app/routes/sparql.py`), and their AllegroGraph repositories reject anonymous access. Signing in as `sandbox_query` is what reveals them, unlocks their SPARQL endpoints, and shows the sandbox preset queries.
+
+Deploy it on its own hostname (e.g. `sandbox.humanitariandataspace.com`), not as a path under the public site: session cookies are host-only, so a subdomain gets its own session jar, whereas two instances sharing a hostname would overwrite each other's session cookie. See `docker-compose.override.yml.example` for running both side by side.
+
+```bash
+DATASPACE=humanitarian-sandbox \
+AUTO_LOGIN_USERNAME=sandbox_query \
+AUTO_LOGIN_PASSWORD=... \
+  venv/Scripts/python run.py
+```
+
+Any dataspace can set `SITE_BANNER` to render a strip above the header; the sandbox uses it to stay visually distinct from the public instance.
+
 ### Adding a new dataspace
 
 1. Create `dataspaces/<name>/` with a `config.py`, a `static/css/theme.css` that redefines the `:root` variables, logos under `static/img/`, and seed page content under `pages/`.
@@ -127,6 +142,8 @@ Environment variables (set in `.env` or system environment):
 | `DASHBOARD_SPARQL_USERNAME` | Read-only user for the statistics dashboard queries | empty |
 | `DASHBOARD_SPARQL_PASSWORD` | Password for the dashboard user | empty |
 | `DASHBOARD_REFRESH_INTERVAL` | Dashboard refresh interval (seconds) | `86400` |
+| `AUTO_LOGIN_USERNAME` | Sign every visitor in as this user; hides the login/logout controls. Leave empty on public instances | empty |
+| `AUTO_LOGIN_PASSWORD` | Password used with `AUTO_LOGIN_USERNAME` for SPARQL endpoint authentication | empty |
 
 Dataspace-specific values (site name, default FDPs, logos, contact email, theme colors) live in `dataspaces/<name>/config.py` and `dataspaces/<name>/static/css/theme.css` — not in environment variables.
 

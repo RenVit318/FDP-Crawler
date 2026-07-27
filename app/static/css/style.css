@@ -1603,3 +1603,22 @@ main {
     }
 }
 
+
+/* Environment banner — shown when the dataspace sets SITE_BANNER (e.g. sandbox). */
+.env-banner {
+    background: var(--accent-color);
+    color: #fff;
+    text-align: center;
+    padding: 0.4rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* Signed-in user label on auto-login instances (no logout control). */
+.nav-user {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    padding: 0.4rem 0.8rem;
+}

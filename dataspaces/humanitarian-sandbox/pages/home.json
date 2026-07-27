@@ -1,0 +1,13 @@
+{
+  "hero_title": "Humanitarian Data Space (Sandbox)",
+  "hero_subtitle": "A demonstration instance: the datasets and query results here are synthetic",
+  "intro_title": "What is this sandbox?",
+  "intro_body": "This is a sandbox copy of the Humanitarian Data Space. It discovers datasets from the same FAIR Data Points as the live platform, but also surfaces sandbox repositories that are hidden on the public instance. You are signed in automatically as the sandbox user, so the SPARQL endpoints behind those repositories can be queried directly from the browser.",
+  "steps_title": "How it works",
+  "step1_title": "Connect to a data source",
+  "step1_body": "Add the URL of a data repository. The platform will automatically discover all datasets it contains.",
+  "step2_title": "Find relevant datasets",
+  "step2_body": "Browse, search, and filter the discovered datasets to find the ones that match your needs.",
+  "step3_title": "Request or query",
+  "step3_body": "Add datasets to your selection and compose a data access request, or run queries directly on available endpoints."
+}
