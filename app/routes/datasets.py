@@ -58,10 +58,22 @@ def dataset_from_dict(data: dict) -> Dataset:
 
 
 def _get_cached_datasets() -> list:
-    """Return the dataset dicts in the cache visible to this session."""
+    """Return the dataset dicts in the cache visible to this session.
+
+    Sandbox datasets (title contains 'sandbox') are only visible when logged in
+    as the dedicated sandbox user; they are hidden from every other session.
+    """
     cache = current_app.fdp_cache
     fdp_uris = session.get('fdp_uris', [])
-    return cache.get_datasets_for_fdps(fdp_uris)
+    datasets = cache.get_datasets_for_fdps(fdp_uris)
+
+    if session.get('user', {}).get('username') != 'sandbox_query':
+        datasets = [
+            d for d in datasets
+            if 'sandbox' not in (d.get('title') or '').lower()
+        ]
+
+    return datasets
 
 
 @datasets_bp.route('/')

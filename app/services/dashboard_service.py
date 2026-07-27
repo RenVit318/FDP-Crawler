@@ -128,7 +128,10 @@ def get_fdp_themes() -> List[Dict[str, Any]]:
             verify_ssl=Config.FDP_VERIFY_SSL,
         )
         dataset_service = DatasetService(fdp_client)
-        datasets = dataset_service.get_all_datasets(list(current_app.config.get('DEFAULT_FDPS', [])))
+        datasets = dataset_service.get_all_datasets(
+            list(current_app.config.get('DEFAULT_FDPS', [])),
+            include_only_catalog_uris=current_app.config.get('INCLUDE_ONLY_CATALOG_URIS'),
+        )
         themes = dataset_service.get_available_themes(datasets)
         return [{'label': t.label, 'uri': t.uri, 'count': t.count} for t in themes]
     except Exception as e:
@@ -235,7 +238,10 @@ def discover_endpoints() -> List[Dict[str, str]]:
             fdp_uris.append(uri)
 
     try:
-        datasets = dataset_service.get_all_datasets(fdp_uris)
+        datasets = dataset_service.get_all_datasets(
+            fdp_uris,
+            include_only_catalog_uris=current_app.config.get('INCLUDE_ONLY_CATALOG_URIS'),
+        )
     except Exception as e:
         logger.error(f'Failed to fetch datasets for endpoint discovery: {e}')
         return get_endpoints()  # fall back to whatever was previously saved

@@ -41,6 +41,10 @@ class FDPCache:
         self._verify_ssl = app_config.get('FDP_VERIFY_SSL', True)
         self._refresh_interval = app_config.get('CACHE_REFRESH_INTERVAL', 300)
         self._default_fdps = list(app_config.get('DEFAULT_FDPS', []))
+        self._include_only_catalogs = {
+            uri.rstrip('/')
+            for uri in (app_config.get('INCLUDE_ONLY_CATALOG_URIS') or [])
+        }
 
     def _make_client(self) -> FDPClient:
         return FDPClient(timeout=self._timeout, verify_ssl=self._verify_ssl)
@@ -55,6 +59,11 @@ class FDPCache:
 
         try:
             fdp = client.fetch_fdp(uri)
+            if self._include_only_catalogs:
+                fdp.catalogs = [
+                    c for c in fdp.catalogs
+                    if c.rstrip('/') in self._include_only_catalogs
+                ]
             # Fetch this FDP's catalogs (and their datasets) concurrently.
             datasets = []
 

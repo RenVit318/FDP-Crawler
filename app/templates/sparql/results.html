@@ -145,13 +145,15 @@
 
 {% for ep_result in result.endpoint_results %}
 {% set ep_idx = loop.index0 %}
-<div class="card" data-endpoint-idx="{{ ep_idx }}">
+<div class="card" data-endpoint-idx="{{ ep_idx }}"
+     {% if not ep_result.success %}title="{{ ep_result.error_message }}"{% endif %}>
     <div class="card-header">
         <span class="card-title">{{ ep_result.fdp_title }}</span>
         {% if ep_result.success %}
         <span class="status-badge status-active">{{ ep_result.bindings|length }} results</span>
         {% else %}
-        <span class="status-badge status-error">Failed</span>
+        <span class="status-badge status-error" style="cursor: help;"
+              title="{{ ep_result.error_message }}">Failed</span>
         {% endif %}
     </div>
 

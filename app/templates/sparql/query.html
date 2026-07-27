@@ -41,7 +41,9 @@
             <h3 class="form-section-title">Select Endpoints</h3>
             <p class="form-hint" style="margin-bottom: 1rem;">
                 Choose which SPARQL endpoints to query (from your selection datasets).
-                Authenticating as <strong>{{ session.user.username }}</strong>.
+                Each endpoint authenticates with its own configured credentials where set,
+                otherwise your login (<strong>{{ session.user.username }}</strong>).
+                <a href="{{ url_for('auth.list_credentials') }}">Manage credentials</a>.
             </p>
 
             <div class="endpoint-selection" style="margin-bottom: 1.5rem;">
@@ -52,6 +54,11 @@
                            style="margin-right: 0.5rem;">
                     <span>
                         <strong>{{ ep.fdp_title }}</strong>
+                        {% if ep.auth_source == 'custom' %}
+                        <span class="dataset-meta" style="background: var(--primary-color); color: #fff; padding: 0.05rem 0.4rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.4rem;">auth: {{ ep.auth_username }}</span>
+                        {% else %}
+                        <span class="dataset-meta" style="border: 1px solid var(--border-color); padding: 0.05rem 0.4rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.4rem;">login auth{% if ep.auth_username %}: {{ ep.auth_username }}{% endif %}</span>
+                        {% endif %}
                         <br>
                         <span class="dataset-meta">{{ ep.endpoint_url }}</span>
                         <br>
@@ -93,7 +100,7 @@
             <textarea id="query" name="query" class="form-control" rows="12" style="font-family: monospace; font-size: 0.85rem;">{{ query_text }}</textarea>
 
             <p class="form-hint" style="margin-top: 0.5rem;">
-                The same query runs against all selected endpoints.
+                The same query runs against all selected endpoints, each with its own credentials.
                 Use <code>LIMIT</code> to keep results manageable.
             </p>
         </div>
