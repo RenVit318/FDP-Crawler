@@ -25,6 +25,9 @@ def _get_selection_endpoints() -> list:
     sync_discovered_endpoints()
     selection = session.get('selection', [])
     discovered = session.get('discovered_endpoints', {})
+    endpoint_credentials = session.get('endpoint_credentials', {})
+    login_username = session.get('user', {}).get('username', '')
+    hide_sandbox = login_username != 'sandbox_query'
 
     if not selection or not discovered:
         return []
@@ -37,16 +40,31 @@ def _get_selection_endpoints() -> list:
         # Only include endpoints whose source dataset is in the selection
         if ep.get('dataset_uri') not in selection_uris:
             continue
+        # Sandbox endpoints are only visible in the sandbox environment.
+        if hide_sandbox and 'sandbox' in (ep.get('dataset_title') or '').lower():
+            continue
         endpoint_url = ep.get('endpoint_url', '')
         if endpoint_url in seen_urls:
             continue
         seen_urls.add(endpoint_url)
+
+        # Reflect which credentials this endpoint will authenticate with:
+        # a per-endpoint credential if configured, otherwise the login.
+        saved = endpoint_credentials.get(ep_hash)
+        if saved and saved.get('username'):
+            auth_username = saved['username']
+            auth_source = 'custom'
+        else:
+            auth_username = login_username
+            auth_source = 'login'
 
         endpoints.append({
             'hash': ep_hash,
             'endpoint_url': endpoint_url,
             'fdp_title': ep.get('fdp_title', 'Unknown'),
             'dataset_title': ep.get('dataset_title', 'Unknown'),
+            'auth_username': auth_username,
+            'auth_source': auth_source,
         })
 
     return endpoints
@@ -119,6 +137,10 @@ def query() -> str:
                 selected=[],
             )
 
+        # Remember the selection so 'New Query' restores the same endpoints.
+        session['sparql_selected_hashes'] = selected_hashes
+        session.modified = True
+
         # Validate query syntax
         timeout = getattr(Config, 'SPARQL_TIMEOUT', 60)
         client = SPARQLClient(timeout=timeout)
@@ -138,7 +160,7 @@ def query() -> str:
         # /auth/credentials) take precedence; login credentials are the fallback.
         user = session.get('user', {})
         discovered = session.get('discovered_endpoints', {})
-        endpoint_creds = session.get('endpoint_credentials', {})
+        endpoint_credentials = session.get('endpoint_credentials', {})
 
         target_endpoints = []
         credentials_map = {}
@@ -154,18 +176,20 @@ def query() -> str:
             parts = [ep.get('fdp_title', ''), ep.get('catalog_title', ''), ep.get('dataset_title', '')]
             fdp_titles[endpoint_url] = ' / '.join(p for p in parts if p) or endpoint_url
 
-            if ep_hash in endpoint_creds:
-                configured = endpoint_creds[ep_hash]
-                cred_username = configured.get('username', '')
-                cred_password = configured.get('password', '')
+            # Per-endpoint credentials take precedence; login is the fallback.
+            saved = endpoint_credentials.get(ep_hash)
+            if saved and saved.get('username'):
+                username = saved.get('username', '')
+                password = saved.get('password', '')
             else:
-                cred_username = user.get('username', '')
-                cred_password = user.get('password', '')
+                username = user.get('username', '')
+                password = user.get('password', '')
+
             credentials_map[endpoint_url] = EndpointCredentials(
                 fdp_uri=ep.get('fdp_uri', ''),
                 sparql_endpoint=endpoint_url,
-                username=cred_username,
-                password=cred_password,
+                username=username,
+                password=password,
             )
 
         # Execute federated query
@@ -184,12 +208,13 @@ def query() -> str:
 
         return redirect(url_for('sparql.results'))
 
-    # GET request - show query form
+    # GET request - show query form, restoring the previous endpoint selection.
+    selected = session.get('sparql_selected_hashes', [])
     return render_template(
         'sparql/query.html',
         endpoints=endpoints,
         query_text='',
-        selected=[],
+        selected=selected,
     )
 
 

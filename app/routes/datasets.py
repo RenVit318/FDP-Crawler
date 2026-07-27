@@ -16,10 +16,22 @@ datasets_bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 
 
 def _get_cached_datasets() -> list:
-    """Return the dataset dicts in the cache visible to this session."""
+    """Return the dataset dicts in the cache visible to this session.
+
+    Sandbox datasets (title contains 'sandbox') are only visible when logged in
+    as the dedicated sandbox user; they are hidden from every other session.
+    """
     cache = current_app.fdp_cache
     fdp_uris = session.get('fdp_uris', [])
-    return cache.get_datasets_for_fdps(fdp_uris)
+    datasets = cache.get_datasets_for_fdps(fdp_uris)
+
+    if session.get('user', {}).get('username') != 'sandbox_query':
+        datasets = [
+            d for d in datasets
+            if 'sandbox' not in (d.get('title') or '').lower()
+        ]
+
+    return datasets
 
 
 def _find_dataset_dict(uri_hash: str) -> dict:
@@ -130,19 +142,28 @@ def refresh():
         return redirect(url_for('datasets.browse'))
 
     cache = current_app.fdp_cache
-    errors = 0
+    no_data, stale = [], []
     for uri in fdp_uris:
         entry = cache.fetch_and_cache_fdp(uri)
-        if entry is None or entry.error:
-            errors += 1
+        if entry is None:
+            no_data.append(uri)
+        elif entry.error:
+            stale.append(uri)
 
     datasets = cache.get_datasets_for_fdps(fdp_uris)
-    if errors:
+    if no_data:
+        hosts = ', '.join(u.split('//')[-1].split('/')[0] for u in no_data)
         flash(
-            f'Refreshed with {errors} error(s); cache holds {len(datasets)} dataset(s).',
+            f'{len(no_data)} FDP(s) unreachable with no cached data ({hosts}).',
+            'error',
+        )
+    if stale:
+        hosts = ', '.join(u.split('//')[-1].split('/')[0] for u in stale)
+        flash(
+            f'Refresh failed for {len(stale)} FDP(s) ({hosts}) — showing cached data.',
             'warning',
         )
-    else:
+    if not no_data and not stale:
         flash(f'Successfully refreshed {len(datasets)} dataset(s).', 'success')
 
     return redirect(url_for('datasets.browse'))

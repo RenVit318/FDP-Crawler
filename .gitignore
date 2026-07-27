@@ -219,3 +219,6 @@ __marimo__/
 # AI development artifacts
 .claude/
 CLAUDE.md
+
+# Local deployment override (server-specific multi-instance setup)
+docker-compose.override.yml

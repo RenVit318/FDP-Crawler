@@ -124,6 +124,8 @@ def _transform_stats(bindings: List[Dict]) -> Dict[str, Any]:
 def get_fdp_themes() -> List[Dict[str, Any]]:
     """Extract themes from the cached FDP datasets (no remote crawling)."""
     try:
+        # The cache already applies INCLUDE_ONLY_CATALOG_URIS when it fetches,
+        # so reading from it needs no further catalog filtering here.
         datasets = [
             Dataset.from_dict(d)
             for d in current_app.fdp_cache.get_all_datasets()

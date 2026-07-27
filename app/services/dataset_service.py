@@ -128,7 +128,11 @@ class DatasetService:
         """
         self.fdp_client = fdp_client
 
-    def get_all_datasets(self, fdp_uris: List[str]) -> List[Dataset]:
+    def get_all_datasets(
+        self,
+        fdp_uris: List[str],
+        include_only_catalog_uris: Optional[List[str]] = None,
+    ) -> List[Dataset]:
         """
         Fetch all datasets from the given FDPs.
 
@@ -141,6 +145,10 @@ class DatasetService:
         Returns:
             List of all datasets from all FDPs.
         """
+        include_only = {
+            uri.rstrip('/') for uri in (include_only_catalog_uris or [])
+        }
+
         # Step 1: fetch all FDPs concurrently to discover catalogs
         catalog_tasks = []  # list of (catalog_uri, fdp_uri, fdp_title)
 
@@ -156,8 +164,12 @@ class DatasetService:
             for future in as_completed(futures):
                 fdp = future.result()
                 if fdp:
-                    logger.info(f"Fetching datasets from {len(fdp.catalogs)} catalogs in {fdp.title}")
-                    for catalog_uri in fdp.catalogs:
+                    catalogs = [
+                        c for c in fdp.catalogs
+                        if not include_only or c.rstrip('/') in include_only
+                    ]
+                    logger.info(f"Fetching datasets from {len(catalogs)} catalogs in {fdp.title}")
+                    for catalog_uri in catalogs:
                         catalog_tasks.append((catalog_uri, fdp.uri, fdp.title))
 
         # Step 2: fetch all catalogs concurrently
