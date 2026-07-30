@@ -177,9 +177,61 @@ class TestSandboxDataspace:
             'https://aku.edu.et',
             'https://fdp.dhicenter.com',
         ]
-        assert app.config['DEFAULT_FDPS'] == base_fdps
+        # The sandbox adds its pinned demo FDP on top of the inherited ones.
+        assert app.config['DEFAULT_FDPS'] == base_fdps + ['https://fdp.renskievit.com']
         assert app.config['CONTACT_EMAIL'] == 'HDS@eepa.be'
         assert app.config['BRAND_LOGOS']
+
+    def test_pins_demo_fdp_and_default_query(self, monkeypatch):
+        monkeypatch.setenv('DATASPACE', 'humanitarian-sandbox')
+        app = create_app({'TESTING': True, 'SECRET_KEY': 'test-secret-key'})
+
+        assert app.config['PINNED_FDPS'] == ['https://fdp.renskievit.com']
+        assert 'reg:GRP-A17' in app.config['DEFAULT_SPARQL_QUERY']
+
+    def test_public_dataspace_has_no_pins_or_default_query(self, monkeypatch):
+        monkeypatch.setenv('DATASPACE', 'humanitarian')
+        app = create_app({'TESTING': True, 'SECRET_KEY': 'test-secret-key'})
+
+        assert not app.config.get('PINNED_FDPS')
+        assert not app.config.get('DEFAULT_SPARQL_QUERY')
+
+
+class TestPinnedFDPs:
+    """PINNED_FDPS stay connected in every session, however the session started."""
+
+    def test_pinned_fdp_added_to_fresh_session(self):
+        _, client = _make_client(PINNED_FDPS=['https://pinned.example.org'])
+        with client:
+            client.get('/')
+            from flask import session
+            assert 'https://pinned.example.org' in session['fdp_uris']
+
+    def test_pinned_fdp_restored_in_existing_session(self):
+        """A session seeded before the FDP was pinned picks it up next request."""
+        _, client = _make_client(PINNED_FDPS=['https://pinned.example.org'])
+        with client:
+            with client.session_transaction() as sess:
+                sess['fdp_uris'] = [FDP_URI]
+            client.get('/')
+            from flask import session
+            assert session['fdp_uris'] == [FDP_URI, 'https://pinned.example.org']
+
+    def test_admin_cannot_remove_pinned_fdp(self):
+        from app.utils import get_uri_hash
+
+        _, client = _make_client(PINNED_FDPS=['https://pinned.example.org'])
+        with client:
+            with client.session_transaction() as sess:
+                sess['is_admin'] = True
+            client.get('/')
+            response = client.post(
+                f'/fdp/{get_uri_hash("https://pinned.example.org")}/remove',
+                follow_redirects=True,
+            )
+            assert b'cannot be removed' in response.data
+            from flask import session
+            assert 'https://pinned.example.org' in session['fdp_uris']
 
     def test_overrides_identity(self, monkeypatch):
         monkeypatch.setenv('DATASPACE', 'humanitarian-sandbox')

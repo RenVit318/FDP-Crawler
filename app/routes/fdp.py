@@ -171,6 +171,12 @@ def remove(uri_hash: str):
     fdp_dict = current_app.fdp_cache.get_fdp(uri) or {}
     title = fdp_dict.get('title') or uri
 
+    # Pinned FDPs are re-added on the next request, so removing one would only
+    # look like it worked.
+    if uri in (current_app.config.get('PINNED_FDPS', []) or []):
+        flash(f'{title} is always connected in this data space and cannot be removed.', 'warning')
+        return redirect(url_for('fdp.list_fdps'))
+
     session['fdp_uris'] = [u for u in session.get('fdp_uris', []) if u != uri]
     session.modified = True
 

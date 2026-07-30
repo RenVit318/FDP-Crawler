@@ -74,25 +74,12 @@
                 <label for="preset-select">Preset queries:</label>
                 <select id="preset-select" class="form-control">
                     <option value="">-- load a preset --</option>
-                    {% if session.user.username == 'sandbox_query' %}
-                    <optgroup label="Sandbox">
-                        <option value="sb_dual_corridor">Dual Corridor (tang_safevoice_sb01 + eepa_safevoice_sb01)</option>
-                        <option value="sb_witness_journey">Witness Journey (tang_safevoice_sb01 + tang_thinx_sb01)</option>
-                        <option value="sb_camp_unnamed">Camp Unnamed (tang_safevoice_sb01 + eepa_thinx_sb01)</option>
-                        <option value="sb_cross_confirmed">Cross Confirmed (tang_thinx_sb01 + eepa_thinx_sb01)</option>
-                        <option value="sb_actor_traced">Actor Traced (all four repos)</option>
-                    </optgroup>
-                    <optgroup label="General">
-                    {% endif %}
                     <option value="select_all">Select everything (LIMIT 50)</option>
                     <option value="list_classes">List all classes (LIMIT 50)</option>
                     <option value="list_predicates">List all predicates (LIMIT 50)</option>
                     <option value="list_subjects">List all subjects (LIMIT 50)</option>
                     <option value="count_triples">Count all triples</option>
                     <option value="describe_subject">Describe a subject (fill in URI)</option>
-                    {% if session.user.username == 'sandbox_query' %}
-                    </optgroup>
-                    {% endif %}
                 </select>
             </div>
 
@@ -116,163 +103,6 @@
 {% block scripts %}
 <script src="https://unpkg.com/@triply/yasqe/build/yasqe.bundled.min.js"></script>
 <script>
-    {% if session.user.username == 'sandbox_query' %}
-    const SANDBOX_PRESETS = {
-        sb_dual_corridor: `PREFIX hds: <http://humanitariandataspace.com/ns/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT DISTINCT ?s ?p ?o WHERE {
-  {
-    ?tip a hds:Tip ;
-         hds:mentionsActor ?s ;
-         hds:mentionsRoute ?o .
-    BIND(hds:operatesOn AS ?p)
-  }
-  UNION
-  {
-    ?s rdfs:label ?o .
-    BIND(rdfs:label AS ?p)
-    FILTER(?s IN (hds:ACT-001, hds:ACT-002, hds:ACT-003, hds:ACT-004,
-                  hds:RTE-A, hds:RTE-B, hds:RTE-C))
-  }
-}`,
-        sb_witness_journey: `PREFIX hds: <http://humanitariandataspace.com/ns/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT DISTINCT ?s ?p ?o WHERE {
-  {
-    ?tip a hds:Tip ;
-         hds:aboutPerson ?s ;
-         hds:mentionsRoute ?o .
-    BIND(hds:spottedOn AS ?p)
-  }
-  UNION
-  {
-    ?testimony a hds:Testimony ;
-               hds:aboutPerson ?s ;
-               hds:mentionsRoute ?o .
-    BIND(hds:testifiedAbout AS ?p)
-  }
-  UNION
-  {
-    ?testimony a hds:Testimony ;
-               hds:aboutPerson ?s ;
-               hds:mentionsCamp ?o .
-    BIND(hds:detainedAt AS ?p)
-  }
-  UNION
-  {
-    ?s rdfs:label ?o .
-    BIND(rdfs:label AS ?p)
-    FILTER(?s IN (hds:PER-103, hds:RTE-A, hds:RTE-C, hds:CAMP-01))
-  }
-}`,
-        sb_camp_unnamed: `PREFIX hds: <http://humanitariandataspace.com/ns/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT DISTINCT ?s ?p ?o WHERE {
-  {
-    ?tip a hds:Tip ;
-         hds:mentionsCamp ?s ;
-         hds:mentionsRoute ?o .
-    BIND(hds:flaggedOnRoute AS ?p)
-  }
-  UNION
-  {
-    ?s a hds:Camp ;
-       hds:operatedBy ?o .
-    BIND(hds:operatedBy AS ?p)
-  }
-  UNION
-  {
-    ?testimony a hds:Testimony ;
-               hds:mentionsCamp ?o ;
-               hds:aboutPerson ?s .
-    BIND(hds:survivorPassedThrough AS ?p)
-  }
-  UNION
-  {
-    ?s rdfs:label ?o .
-    BIND(rdfs:label AS ?p)
-    FILTER(?s IN (hds:CAMP-01, hds:ACT-003, hds:RTE-A,
-                  hds:PER-101, hds:PER-102))
-  }
-}`,
-        sb_cross_confirmed: `PREFIX hds: <http://humanitariandataspace.com/ns/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT DISTINCT ?s ?p ?o WHERE {
-  {
-    ?s a hds:RouteSegment ;
-       hds:onRoute hds:RTE-A ;
-       hds:atLocation ?o .
-    BIND(hds:passesThrough AS ?p)
-  }
-  UNION
-  {
-    ?s a hds:Camp ;
-       hds:atLocation ?o .
-    BIND(hds:locatedAt AS ?p)
-    FILTER EXISTS { ?seg hds:atLocation ?o ; hds:onRoute hds:RTE-A . }
-  }
-  UNION
-  {
-    ?s a hds:Camp ;
-       hds:operatedBy ?o .
-    BIND(hds:operatedBy AS ?p)
-  }
-  UNION
-  {
-    ?s rdfs:label ?o .
-    BIND(rdfs:label AS ?p)
-    FILTER(?s IN (hds:RTE-A, hds:CAMP-01, hds:ACT-003,
-                  hds:LOC-ERI-01, hds:LOC-ETH-02, hds:LOC-ETH-03, hds:LOC-COAST-RS))
-  }
-}`,
-        sb_actor_traced: `PREFIX hds: <http://humanitariandataspace.com/ns/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT DISTINCT ?s ?p ?o WHERE {
-  {
-    { ?s a hds:Tip       ; hds:mentionsActor hds:ACT-001 . BIND(hds:liveIntelOn AS ?p) }
-    UNION
-    { ?s a hds:Testimony ; hds:mentionsActor hds:ACT-001 . BIND(hds:testimonyOn AS ?p) }
-    UNION
-    { ?s a hds:LegalCase ; hds:concernsActor hds:ACT-001 . BIND(hds:prosecutes  AS ?p) }
-    UNION
-    { ?s a hds:Finding   ; hds:concernsActor hds:ACT-001 . BIND(hds:analyses    AS ?p) }
-    BIND(hds:ACT-001 AS ?o)
-  }
-  UNION
-  {
-    { ?rec a hds:Tip       ; hds:mentionsActor hds:ACT-001 ; hds:mentionsRoute ?o . }
-    UNION
-    { ?rec a hds:Testimony ; hds:mentionsActor hds:ACT-001 ; hds:mentionsRoute ?o . }
-    BIND(hds:ACT-001 AS ?s)
-    BIND(hds:activeOn AS ?p)
-  }
-  UNION
-  {
-    ?case a hds:LegalCase ;
-          hds:concernsActor hds:ACT-001 ;
-          hds:atLocation ?loc .
-    ?seg  a hds:RouteSegment ;
-          hds:atLocation ?loc ;
-          hds:onRoute ?o .
-    BIND(hds:ACT-001 AS ?s)
-    BIND(hds:legalFootprintOn AS ?p)
-  }
-  UNION
-  {
-    ?s rdfs:label ?o .
-    BIND(rdfs:label AS ?p)
-    FILTER(?s IN (hds:ACT-001, hds:RTE-A, hds:RTE-C,
-                  hds:CASE-K01, hds:FND-E02))
-  }
-}`
-    };
-    {% endif %}
-
     const PRESETS = {
         select_all: `SELECT ?subject ?predicate ?object
 WHERE {
@@ -304,8 +134,12 @@ WHERE {
 }`
     };
 
+    // Data spaces may ship a query the editor opens with (DEFAULT_SPARQL_QUERY
+    // in dataspaces/<name>/config.py). Falls back to the generic preset.
+    const DEFAULT_QUERY = {{ (config.DEFAULT_SPARQL_QUERY or '') | tojson }};
+
     const queryTextarea = document.getElementById('query');
-    const initialQuery = queryTextarea.value.trim() || PRESETS.select_all;
+    const initialQuery = queryTextarea.value.trim() || DEFAULT_QUERY.trim() || PRESETS.select_all;
     queryTextarea.value = initialQuery;
 
     let yasqe = null;
@@ -319,10 +153,6 @@ WHERE {
     } catch (e) {
         document.getElementById('yasqe-container').style.display = 'none';
     }
-
-    {% if session.user.username == 'sandbox_query' %}
-    Object.assign(PRESETS, SANDBOX_PRESETS);
-    {% endif %}
 
     document.getElementById('preset-select').addEventListener('change', function () {
         const key = this.value;

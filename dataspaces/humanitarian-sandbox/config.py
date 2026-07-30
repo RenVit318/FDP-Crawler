@@ -34,3 +34,25 @@ SITE_TAGLINE = 'Sandbox instance — synthetic data for demonstration purposes'
 # Rendered as a strip above the header on every page, so the sandbox instance is
 # never mistaken for the public one.
 SITE_BANNER = 'Sandbox environment — synthetic data'
+
+# FDPs that stay connected in every visitor's session, re-added on each request
+# (see app/__init__.py::init_session) so sessions created before an FDP was
+# pinned pick it up too. The sandbox demo FDP hosts the datasets the preset
+# query below runs against, so the instance is never an empty shell.
+PINNED_FDPS = [
+    'https://fdp.renskievit.com',
+]
+
+# Listed as a default so the cache prefetches it at startup and keeps it warm
+# in the background refresh, exactly like the inherited FDPs.
+DEFAULT_FDPS = list(_base.DEFAULT_FDPS) + PINNED_FDPS
+
+# Pre-filled in the SPARQL editor whenever the query box would otherwise be
+# empty, so a visitor can hit Execute without writing SPARQL first. Only the
+# sandbox defines this; the public instances keep their empty editor.
+with open(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 'queries', 'grp_a17_where_active.sparql'),
+    encoding='utf-8',
+) as _query_file:
+    DEFAULT_SPARQL_QUERY = _query_file.read()

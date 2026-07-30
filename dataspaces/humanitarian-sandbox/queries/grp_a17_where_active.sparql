@@ -1,0 +1,81 @@
+# Where is GRP-A17 active? Every row is a triple (?subject ?predicate ?object),
+# so the rows from each selected repository concatenate into one graph. Counts
+# are aggregate-derived and suppressed below 3 occurrences within a repository.
+
+PREFIX hds: <https://humanitariandataspace.com/ontology/hds#>
+PREFIX reg: <https://humanitariandataspace.com/id/>
+PREFIX res: <https://humanitariandataspace.com/result/>
+
+SELECT DISTINCT ?subject ?predicate ?object
+WHERE {
+  {
+    # GRP-A17 res:observedAt <site>
+    { SELECT ?loc (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:location ?loc .
+        ?loc hds:locationType ?t . FILTER(?t != "LT-ADM1")
+      } GROUP BY ?loc HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:observedAt AS ?predicate) BIND(?loc AS ?object)
+  }
+  UNION {
+    # <site> hds:locationType "..."   (context, so the graph is readable)
+    { SELECT ?loc ?t (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:location ?loc .
+        ?loc hds:locationType ?t . FILTER(?t != "LT-ADM1")
+      } GROUP BY ?loc ?t HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(?loc AS ?subject) BIND(hds:locationType AS ?predicate) BIND(?t AS ?object)
+  }
+  UNION {
+    # GRP-A17 res:activeInCountry <country>
+    { SELECT ?c (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:location ?l . ?l hds:country ?c .
+      } GROUP BY ?c HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:activeInCountry AS ?predicate) BIND(?c AS ?object)
+  }
+  UNION {
+    # GRP-A17 res:activeInRegion "ADM1-.."
+    { SELECT ?v (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:location ?l . ?l hds:state ?v .
+      } GROUP BY ?v HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:activeInRegion AS ?predicate) BIND(?v AS ?object)
+  }
+  UNION {
+    # GRP-A17 res:activeInQuarter "2026-Q1"
+    { SELECT ?v (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:date ?d .
+        BIND(CONCAT(STR(YEAR(?d)), "-",
+             IF(MONTH(?d) < 4, "Q1", IF(MONTH(?d) < 7, "Q2",
+             IF(MONTH(?d) < 10, "Q3", "Q4")))) AS ?v)
+      } GROUP BY ?v HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:activeInQuarter AS ?predicate) BIND(?v AS ?object)
+  }
+  UNION {
+    # GRP-A17 res:violenceType "VT-.."      (SafeLine only)
+    { SELECT ?v (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:violencePerpetrated ?v .
+      } GROUP BY ?v HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:violenceType AS ?predicate) BIND(?v AS ?object)
+  }
+  UNION {
+    # GRP-A17 res:abuseCategory "AB-.."     (SitRep only)
+    { SELECT ?v (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:abuseCategory ?v .
+      } GROUP BY ?v HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:abuseCategory AS ?predicate) BIND(?v AS ?object)
+  }
+  UNION {
+    # <origin> res:routeTo <destination>    (SafeVoice only - the edge no single
+    #                                        repository type can produce)
+    { SELECT ?from ?to (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:fromLocation ?from ; hds:toLocation ?to .
+      } GROUP BY ?from ?to HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(?from AS ?subject) BIND(res:routeTo AS ?predicate) BIND(?to AS ?object)
+  }
+  UNION {
+    # GRP-A17 res:reportedBy <organisation>
+    { SELECT ?org (COUNT(DISTINCT ?e) AS ?n) WHERE {
+        ?e hds:involved reg:GRP-A17 ; hds:source ?org .
+      } GROUP BY ?org HAVING (COUNT(DISTINCT ?e) >= 3) }
+    BIND(reg:GRP-A17 AS ?subject) BIND(res:reportedBy AS ?predicate) BIND(?org AS ?object)
+  }
+}
+ORDER BY ?predicate ?object

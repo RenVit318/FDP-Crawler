@@ -168,6 +168,14 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
                 default_uris = current_app.config.get('DEFAULT_FDPS', []) or []
                 session['fdp_uris'] = list(default_uris)
 
+        # Pinned FDPs are connected in every session, not just fresh ones — a
+        # session seeded before the FDP was pinned (or one an admin removed it
+        # from) picks it up on the next request.
+        for pinned_uri in current_app.config.get('PINNED_FDPS', []) or []:
+            if pinned_uri not in session['fdp_uris']:
+                session['fdp_uris'].append(pinned_uri)
+                session.modified = True
+
         # Drop legacy session keys that are now replaced by the process-wide cache.
         session.pop('fdps', None)
         session.pop('datasets_cache', None)
