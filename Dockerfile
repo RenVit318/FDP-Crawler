@@ -35,8 +35,8 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-# Run with gunicorn
-# Single worker: the FDP cache is in-process memory; multiple workers each maintain
-# their own copy, causing cache divergence on manual refreshes. One worker with
-# multiple threads is correct for a sandbox with low concurrency.
+# Run with gunicorn. Single worker: the FDP cache and its background refresh
+# live in process memory, so multiple workers would each scrape every FDP and
+# serve diverging snapshots. One worker with multiple threads is correct for
+# this I/O-bound app with low concurrency.
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "run:app"]

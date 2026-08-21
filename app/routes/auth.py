@@ -1,7 +1,8 @@
 """Authentication routes."""
 
+import logging
 from functools import wraps
-from typing import Callable, Any
+from typing import Callable, Any, Optional
 
 from flask import (
     Blueprint,
@@ -15,9 +16,23 @@ from flask import (
 )
 
 from app.routes.datasets import sync_discovered_endpoints
+from app.services import keycloak
 
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
+
+
+def _safe_next(candidate: Optional[str]) -> Optional[str]:
+    """Return candidate only if it is a same-site relative path.
+
+    Blocks absolute URLs and protocol-relative ones ("//evil.com"), which the
+    browser would treat as external.
+    """
+    if candidate and candidate.startswith('/') and not candidate.startswith('//'):
+        return candidate
+    return None
 
 
 def login_required(f: Callable[..., Any]) -> Callable[..., Any]:
@@ -61,18 +76,88 @@ def login() -> str:
             'username': username,
             'password': password,
             'is_authenticated': True,
+            'auth_method': 'password',
         }
         session.modified = True
 
         flash(f'Welcome, {username}!', 'success')
 
         # Redirect to next page or home (block protocol-relative URLs)
-        next_page = request.args.get('next')
-        if next_page and next_page.startswith('/') and not next_page.startswith('//'):
+        next_page = _safe_next(request.args.get('next'))
+        if next_page:
             return redirect(next_page)
         return redirect(url_for('main.index'))
 
     return render_template('auth/login.html')
+
+
+@auth_bp.route('/keycloak/login')
+def keycloak_login() -> str:
+    """Start the OIDC authorization-code flow against Keycloak.
+
+    Returns:
+        Redirect to Keycloak, or back to the login form when Keycloak is off.
+    """
+    if not keycloak.is_enabled():
+        flash('Keycloak login is not configured on this instance.', 'error')
+        return redirect(url_for('auth.login'))
+
+    # Stash the post-login destination: Keycloak returns to a fixed, registered
+    # redirect URI, so it cannot carry a ?next through for us.
+    next_page = _safe_next(request.args.get('next'))
+    if next_page:
+        session['keycloak_next'] = next_page
+    else:
+        session.pop('keycloak_next', None)
+    session.modified = True
+
+    redirect_uri = url_for('auth.keycloak_callback', _external=True)
+    return keycloak.get_client().authorize_redirect(redirect_uri)
+
+
+@auth_bp.route('/keycloak/callback')
+def keycloak_callback() -> str:
+    """Complete the OIDC flow and sign the user in.
+
+    Returns:
+        Redirect to the stashed destination, or to the login form on failure.
+    """
+    if not keycloak.is_enabled():
+        flash('Keycloak login is not configured on this instance.', 'error')
+        return redirect(url_for('auth.login'))
+
+    try:
+        # Verifies state, exchanges the code, and validates the ID token.
+        token = keycloak.get_client().authorize_access_token()
+    except Exception as e:  # noqa: BLE001 - any failure here means "not signed in"
+        logger.warning(f'Keycloak sign-in failed: {e}')
+        flash('Keycloak sign-in failed. Please try again.', 'error')
+        return redirect(url_for('auth.login'))
+
+    claims = token.get('userinfo') or {}
+    username = (
+        claims.get('preferred_username')
+        or claims.get('email')
+        or claims.get('sub')
+        or 'keycloak user'
+    )
+
+    # No password: SPARQL endpoints are reached with the access token instead.
+    session['user'] = {
+        'username': username,
+        'password': '',
+        'is_authenticated': True,
+        'auth_method': 'keycloak',
+    }
+    keycloak.store_tokens(token)
+    session.modified = True
+
+    flash(f'Welcome, {username}!', 'success')
+
+    next_page = _safe_next(session.pop('keycloak_next', None))
+    if next_page:
+        return redirect(next_page)
+    return redirect(url_for('main.index'))
 
 
 @auth_bp.route('/logout', methods=['POST'])
@@ -82,15 +167,29 @@ def logout() -> str:
     Returns:
         Redirect to home page.
     """
-    username = session.get('user', {}).get('username', 'User')
+    user = session.get('user', {})
+    username = user.get('username', 'User')
+
+    # Build the Keycloak logout URL before dropping the tokens — it needs the
+    # ID token as a hint. Signing out locally without ending the Keycloak
+    # session would let the next "Sign in with Keycloak" re-authenticate the
+    # same user silently, which reads as a broken logout.
+    keycloak_logout = None
+    if user.get('auth_method') == 'keycloak' and keycloak.is_enabled():
+        keycloak_logout = keycloak.logout_url(url_for('main.index', _external=True))
 
     # Clear user-related session data
     session.pop('user', None)
     session.pop('endpoint_credentials', None)
     session.pop('query_result', None)
+    session.pop('keycloak_next', None)
+    keycloak.clear_tokens()
     session.modified = True
 
     flash(f'Goodbye, {username}!', 'success')
+
+    if keycloak_logout:
+        return redirect(keycloak_logout)
     return redirect(url_for('main.index'))
 
 

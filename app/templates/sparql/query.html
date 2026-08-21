@@ -56,6 +56,8 @@
                         <strong>{{ ep.fdp_title }}</strong>
                         {% if ep.auth_source == 'custom' %}
                         <span class="dataset-meta" style="background: var(--primary-color); color: #fff; padding: 0.05rem 0.4rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.4rem;">auth: {{ ep.auth_username }}</span>
+                        {% elif ep.auth_source == 'keycloak' %}
+                        <span class="dataset-meta" style="background: var(--accent-color); color: #fff; padding: 0.05rem 0.4rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.4rem;">Keycloak token{% if ep.auth_username %}: {{ ep.auth_username }}{% endif %}</span>
                         {% else %}
                         <span class="dataset-meta" style="border: 1px solid var(--border-color); padding: 0.05rem 0.4rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.4rem;">login auth{% if ep.auth_username %}: {{ ep.auth_username }}{% endif %}</span>
                         {% endif %}

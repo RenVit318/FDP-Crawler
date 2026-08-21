@@ -10,6 +10,22 @@
         <span class="card-title">Sign In</span>
     </div>
 
+    {% if site.keycloak_enabled %}
+    <div class="card-body" style="border-bottom: 1px solid var(--border-color);">
+        <a href="{{ url_for('auth.keycloak_login', next=request.args.get('next')) }}"
+           class="btn btn-primary" style="display: block; text-align: center;">
+            Sign in with Keycloak
+        </a>
+        <p style="text-align: center; margin: 0.75rem 0 0; color: var(--text-secondary); font-size: 0.85rem;">
+            Uses your organisation account.
+        </p>
+    </div>
+
+    <div style="text-align: center; padding: 0.5rem 0; color: var(--text-secondary); font-size: 0.85rem;">
+        or sign in with endpoint credentials
+    </div>
+    {% endif %}
+
     <form method="POST" action="{{ url_for('auth.login') }}">
         <div class="card-body">
             <div class="form-group">

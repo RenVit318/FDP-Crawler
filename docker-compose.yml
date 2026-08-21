@@ -9,12 +9,23 @@ services:
       - DATASPACE=${DATASPACE:-humanitarian}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - FLASK_ENV=${FLASK_ENV:-production}
+      # Served over https behind the reverse proxy, so generated external URLs
+      # must be https — the Keycloak redirect URI above all.
+      - FORCE_HTTPS=${FORCE_HTTPS:-true}
       - FDP_TIMEOUT=${FDP_TIMEOUT:-30}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DASHBOARD_SPARQL_USERNAME=${DASHBOARD_SPARQL_USERNAME:-}
       - DASHBOARD_SPARQL_PASSWORD=${DASHBOARD_SPARQL_PASSWORD:-}
       - DASHBOARD_REFRESH_INTERVAL=${DASHBOARD_REFRESH_INTERVAL:-86400}
       - DASHBOARD_REPO_NAME=${DASHBOARD_REPO_NAME:-dashboard}
+      # Keycloak login. Blank by default, which leaves the feature switched off.
+      # Register the client's redirect URI as https://<host>/auth/keycloak/callback
+      # and its post-logout redirect as https://<host>/ — Keycloak matches both
+      # literally.
+      - KEYCLOAK_SERVER_URL=${KEYCLOAK_SERVER_URL:-}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
     volumes:
       - dashboard_data:/app/app/data/dashboard
     restart: unless-stopped

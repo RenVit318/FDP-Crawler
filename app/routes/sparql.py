@@ -12,7 +12,7 @@ from flask import (
 
 from app.routes.auth import login_required
 from app.routes.datasets import sync_discovered_endpoints
-from app.services import SPARQLClient
+from app.services import SPARQLClient, keycloak
 from app.models import SPARQLQuery, EndpointCredentials
 from app.config import Config
 
@@ -32,6 +32,10 @@ def _get_selection_endpoints() -> list:
     if not selection or not discovered:
         return []
 
+    # Presence check only — rendering the endpoint list must not trigger a token
+    # refresh. The query path calls get_valid_access_token() for the real thing.
+    has_keycloak_token = keycloak.has_session_token()
+
     selection_uris = {item['uri'] for item in selection}
     endpoints = []
     seen_urls = set()
@@ -49,11 +53,16 @@ def _get_selection_endpoints() -> list:
         seen_urls.add(endpoint_url)
 
         # Reflect which credentials this endpoint will authenticate with:
-        # a per-endpoint credential if configured, otherwise the login.
+        # a per-endpoint credential if configured, then a Keycloak token,
+        # otherwise the login username/password. Mirrors the resolution order
+        # in query() — keep the two in step.
         saved = endpoint_credentials.get(ep_hash)
         if saved and saved.get('username'):
             auth_username = saved['username']
             auth_source = 'custom'
+        elif has_keycloak_token:
+            auth_username = login_username
+            auth_source = 'keycloak'
         else:
             auth_username = login_username
             auth_source = 'login'
@@ -157,10 +166,21 @@ def query() -> str:
             )
 
         # Build execution plan. Per-endpoint credentials (configured under
-        # /auth/credentials) take precedence; login credentials are the fallback.
+        # /auth/credentials) take precedence, then a Keycloak bearer token,
+        # then the login username/password.
         user = session.get('user', {})
         discovered = session.get('discovered_endpoints', {})
         endpoint_credentials = session.get('endpoint_credentials', {})
+
+        # Resolved once for the whole federated run: refreshing per endpoint
+        # would hit Keycloak N times, and every endpoint gets the same token.
+        access_token = keycloak.get_valid_access_token()
+        if user.get('auth_method') == 'keycloak' and not access_token:
+            flash(
+                'Your Keycloak session has expired. Please sign in again.',
+                'warning'
+            )
+            return redirect(url_for('auth.login', next=url_for('sparql.query')))
 
         target_endpoints = []
         credentials_map = {}
@@ -176,11 +196,18 @@ def query() -> str:
             parts = [ep.get('fdp_title', ''), ep.get('catalog_title', ''), ep.get('dataset_title', '')]
             fdp_titles[endpoint_url] = ' / '.join(p for p in parts if p) or endpoint_url
 
-            # Per-endpoint credentials take precedence; login is the fallback.
+            # Per-endpoint credentials take precedence — a provider still on
+            # HTTP Basic keeps working even while the user holds a token.
+            # Otherwise send the Keycloak token, falling back to the login.
             saved = endpoint_credentials.get(ep_hash)
+            token = None
             if saved and saved.get('username'):
                 username = saved.get('username', '')
                 password = saved.get('password', '')
+            elif access_token:
+                username = ''
+                password = ''
+                token = access_token
             else:
                 username = user.get('username', '')
                 password = user.get('password', '')
@@ -190,6 +217,7 @@ def query() -> str:
                 sparql_endpoint=endpoint_url,
                 username=username,
                 password=password,
+                access_token=token,
             )
 
         # Execute federated query
