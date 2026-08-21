@@ -7,12 +7,31 @@ from typing import Optional, Dict, Any
 
 from flask import Blueprint, Flask
 from jinja2 import ChoiceLoader, FileSystemLoader
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import Config
 
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATASPACES_DIR = os.path.join(_REPO_ROOT, 'dataspaces')
+
+
+class _ForceHttpsScheme:
+    """WSGI middleware reporting every request as https.
+
+    Flask builds external URLs from the request scheme, and neither
+    PREFERRED_URL_SCHEME (ignored inside a request context) nor SERVER_NAME
+    (sets the host, not the scheme) can override it. Forcing it here is what
+    guarantees an https:// Keycloak redirect URI without depending on the
+    reverse proxy being configured to send X-Forwarded-Proto.
+    """
+
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        environ['wsgi.url_scheme'] = 'https'
+        return self.wsgi_app(environ, start_response)
 
 
 def _load_dataspace(app: Flask) -> None:
@@ -66,6 +85,9 @@ def _load_dataspace(app: Flask) -> None:
                 'banner': app.config.get('SITE_BANNER', ''),
                 # Templates hide the login/logout controls on auto-login instances.
                 'auto_login': bool(app.config.get('AUTO_LOGIN_USERNAME')),
+                # Templates show the "Sign in with Keycloak" option only when
+                # this instance has a Keycloak realm configured.
+                'keycloak_enabled': getattr(app, 'keycloak_oauth', None) is not None,
             }
         }
 
@@ -92,9 +114,30 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
     if config_override:
         app.config.update(config_override)
 
+    # Sit correctly behind the reverse proxy. The app is only ever reached
+    # through it — docker-compose.yml binds gunicorn to 127.0.0.1 — so the
+    # client address and host arrive in X-Forwarded-* headers.
+    #
+    # With FORCE_HTTPS the scheme is pinned to https instead of being read from
+    # X-Forwarded-Proto, so external URLs are correct even if the proxy never
+    # sends that header. x_proto is switched off in that case so ProxyFix cannot
+    # put http back: the forced scheme is set first, and ProxyFix runs after it.
+    force_https = app.config.get('FORCE_HTTPS')
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=0 if force_https else 1, x_host=1
+    )
+    if force_https:
+        app.wsgi_app = _ForceHttpsScheme(app.wsgi_app)
+
     # Initialize server-side sessions (filesystem-backed)
     from flask_session import Session
     Session(app)
+
+    # Register the Keycloak OIDC client (no-op when Keycloak is unconfigured).
+    # Must run before _load_dataspace's context processor is used, and before
+    # any request touches keycloak.is_enabled().
+    from app.services import keycloak
+    keycloak.init_app(app)
 
     # Configure logging
     logging.basicConfig(
@@ -154,6 +197,7 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
                 'username': auto_login_username,
                 'password': current_app.config.get('AUTO_LOGIN_PASSWORD', ''),
                 'is_authenticated': True,
+                'auth_method': 'password',
             }
             session.modified = True
 
@@ -199,6 +243,10 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if app.config.get('FORCE_HTTPS'):
+            # Tell browsers to stay on https for a year. No includeSubDomains:
+            # that would bind every subdomain to the same promise.
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         return response
 
     return app

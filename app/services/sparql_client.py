@@ -75,8 +75,13 @@ class SPARQLClient:
             'Content-Type': 'application/x-www-form-urlencoded',
         }
 
+        # A bearer token (Keycloak) takes precedence over Basic credentials: an
+        # endpoint that accepts the token has no use for a password, and sending
+        # both would leak the password to a token-only endpoint.
         auth = None
-        if credentials and credentials.username:
+        if credentials and credentials.access_token:
+            headers['Authorization'] = f'Bearer {credentials.access_token}'
+        elif credentials and credentials.username:
             auth = HTTPBasicAuth(credentials.username, credentials.password)
 
         try:
