@@ -28,6 +28,11 @@ services:
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-}
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
+      # Per-dataspace role names. Each dataspace runs its own instance against
+      # its own Keycloak client, so AHDS overrides these with ahds-admin /
+      # ahds-authz-admin rather than inheriting the HDS defaults.
+      - KEYCLOAK_ADMIN_ROLE=${KEYCLOAK_ADMIN_ROLE:-hds-admin}
+      - KEYCLOAK_AUTHZ_ADMIN_ROLE=${KEYCLOAK_AUTHZ_ADMIN_ROLE:-hds-authz-admin}
     volumes:
       # The whole data directory, not just dashboard/. admin.json lives here
       # and holds the editable page content; mounting only the subdirectory

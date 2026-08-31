@@ -87,10 +87,15 @@ def init_app(app: Flask) -> None:
         },
     )
     app.keycloak_oauth = oauth
+    # Role names are logged so a deployment that forgot to override them for its
+    # own dataspace (AHDS inheriting the HDS defaults, say) is visible at boot.
     logger.info(
-        'Keycloak login enabled (realm=%s, client=%s)',
+        'Keycloak login enabled (realm=%s, client=%s, admin_role=%s, '
+        'authz_admin_role=%s)',
         app.config['KEYCLOAK_REALM'],
         app.config['KEYCLOAK_CLIENT_ID'],
+        app.config.get('KEYCLOAK_ADMIN_ROLE'),
+        app.config.get('KEYCLOAK_AUTHZ_ADMIN_ROLE'),
     )
 
 
@@ -142,11 +147,26 @@ def roles_from_claims(claims: Dict[str, Any]) -> set:
 
 
 def has_admin_role(claims: Dict[str, Any]) -> bool:
-    """Whether these claims grant the configured admin role."""
-    admin_role = current_app.config.get('KEYCLOAK_ADMIN_ROLE')
-    if not admin_role:
+    """Whether these claims grant the site-administration role."""
+    return _has_role(claims, 'KEYCLOAK_ADMIN_ROLE')
+
+
+def has_authz_admin_role(claims: Dict[str, Any]) -> bool:
+    """Whether these claims grant the authorization-management role.
+
+    Deliberately independent of has_admin_role: managing who may reach data at
+    the AllegroGraph instances is a different, larger power than editing site
+    content, so neither role implies the other.
+    """
+    return _has_role(claims, 'KEYCLOAK_AUTHZ_ADMIN_ROLE')
+
+
+def _has_role(claims: Dict[str, Any], config_key: str) -> bool:
+    """Whether the claims carry the role named by the given config key."""
+    role = current_app.config.get(config_key)
+    if not role:
         return False
-    return admin_role in roles_from_claims(claims)
+    return role in roles_from_claims(claims)
 
 
 def store_tokens(token: Dict[str, Any]) -> None:

@@ -36,6 +36,23 @@ def admin_required(f):
     return decorated
 
 
+def authz_admin_required(f):
+    """Decorator that requires the authorization-management role.
+
+    Separate from admin_required on purpose: managing access at the
+    AllegroGraph instances is a distinct grant from editing site content, and
+    holding one role must never imply the other. Panels that read or change
+    authorization at the instances go behind this one.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('is_authz_admin'):
+            flash('Authorization administrator access required.', 'warning')
+            return redirect(url_for('admin.login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated
+
+
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if session.get('is_admin'):

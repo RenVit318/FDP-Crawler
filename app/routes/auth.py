@@ -151,16 +151,27 @@ def keycloak_callback() -> str:
     }
     keycloak.store_tokens(token)
 
-    # One login for both: holding the admin role elevates this same session,
-    # so there is no separate admin sign-in. Roles are read once, at login.
+    # One login for all of it: the roles on the token decide which panels
+    # appear, so there is no separate admin sign-in. Read once, at login.
+    #
+    # The two roles are independent — site administration and authorization
+    # management are granted separately. Any elevation not backed by a role on
+    # this token is cleared, so nothing is inherited from a previous session.
     if keycloak.has_admin_role(claims):
         session['is_admin'] = True
         session['admin_username'] = username
         logger.info(f'Admin session granted to {username} via Keycloak role')
     else:
-        # Never inherit elevation from a previous session on this browser.
         session.pop('is_admin', None)
         session.pop('admin_username', None)
+
+    if keycloak.has_authz_admin_role(claims):
+        session['is_authz_admin'] = True
+        logger.info(
+            f'Authorization-admin session granted to {username} via Keycloak role'
+        )
+    else:
+        session.pop('is_authz_admin', None)
 
     session.modified = True
 
@@ -198,6 +209,7 @@ def logout() -> str:
     session.pop('keycloak_next', None)
     session.pop('is_admin', None)
     session.pop('admin_username', None)
+    session.pop('is_authz_admin', None)
     keycloak.clear_tokens()
     session.modified = True
 

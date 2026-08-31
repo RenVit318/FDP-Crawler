@@ -19,6 +19,7 @@ KEYCLOAK_CONFIG = {
     'KEYCLOAK_REALM': 'dataspace',
     'KEYCLOAK_CLIENT_ID': 'hds',
     'KEYCLOAK_ADMIN_ROLE': 'hds-admin',
+    'KEYCLOAK_AUTHZ_ADMIN_ROLE': 'hds-authz-admin',
 }
 
 
@@ -144,6 +145,98 @@ class TestSingleButtonElevation:
         """The nav offers one login, not a second admin one."""
         response = kc_client.get('/')
         assert b'/admin/login' not in response.data
+
+
+class TestAuthzAdminRoleIsSeparate:
+    """Site administration and authorization management are distinct grants."""
+
+    def test_site_admin_role_does_not_grant_authz(self, kc_app, kc_client):
+        """The person who edits the About page cannot grant data access."""
+        _sign_in(kc_app, kc_client, _token(roles=['hds-admin']))
+
+        with kc_client.session_transaction() as sess:
+            assert sess['is_admin'] is True
+            assert sess.get('is_authz_admin') is None
+
+    def test_authz_role_does_not_grant_site_admin(self, kc_app, kc_client):
+        """And the implication does not hold in reverse either."""
+        _sign_in(kc_app, kc_client, _token(roles=['hds-authz-admin']))
+
+        with kc_client.session_transaction() as sess:
+            assert sess['is_authz_admin'] is True
+            assert sess.get('is_admin') is None
+
+    def test_both_roles_grant_both(self, kc_app, kc_client):
+        _sign_in(kc_app, kc_client, _token(roles=['hds-admin', 'hds-authz-admin']))
+
+        with kc_client.session_transaction() as sess:
+            assert sess['is_admin'] is True
+            assert sess['is_authz_admin'] is True
+
+    def test_authz_admin_required_guards_routes(self, kc_app, kc_client):
+        """The decorator future authorization panels will sit behind."""
+        from app.routes.admin import authz_admin_required
+
+        @kc_app.route('/_authz_probe')
+        @authz_admin_required
+        def _authz_probe():
+            return 'granted'
+
+        # Site admin alone is refused.
+        _sign_in(kc_app, kc_client, _token(roles=['hds-admin']))
+        assert kc_client.get('/_authz_probe').status_code == 302
+
+        # The authorization role is admitted.
+        _sign_in(kc_app, kc_client, _token(roles=['hds-authz-admin']))
+        response = kc_client.get('/_authz_probe')
+        assert response.status_code == 200
+        assert b'granted' in response.data
+
+    def test_logout_drops_authz_rights(self, kc_app, kc_client):
+        _sign_in(kc_app, kc_client, _token(roles=['hds-authz-admin']))
+
+        with patch.object(keycloak, '_server_metadata', return_value={}):
+            kc_client.post('/auth/logout')
+
+        with kc_client.session_transaction() as sess:
+            assert sess.get('is_authz_admin') is None
+
+    def test_login_does_not_inherit_stale_authz_elevation(self, kc_app, kc_client):
+        with kc_client.session_transaction() as sess:
+            sess['is_authz_admin'] = True
+
+        _sign_in(kc_app, kc_client, _token(roles=['data-user']))
+
+        with kc_client.session_transaction() as sess:
+            assert sess.get('is_authz_admin') is None
+
+
+class TestPerDataspaceRoleNames:
+    """Each dataspace deployment names its own roles (HDS, AHDS, ...)."""
+
+    @pytest.fixture
+    def ahds_app(self):
+        return create_app(dict(
+            KEYCLOAK_CONFIG,
+            KEYCLOAK_CLIENT_ID='ahds',
+            KEYCLOAK_ADMIN_ROLE='ahds-admin',
+            KEYCLOAK_AUTHZ_ADMIN_ROLE='ahds-authz-admin',
+        ))
+
+    def test_ahds_roles_grant_on_ahds_instance(self, ahds_app):
+        with ahds_app.test_request_context():
+            claims = {'realm_access': {'roles': ['ahds-admin']}}
+            assert keycloak.has_admin_role(claims) is True
+
+            claims = {'realm_access': {'roles': ['ahds-authz-admin']}}
+            assert keycloak.has_authz_admin_role(claims) is True
+
+    def test_hds_role_does_not_grant_on_ahds_instance(self, ahds_app):
+        """A role for the other dataspace must not carry across."""
+        with ahds_app.test_request_context():
+            claims = {'realm_access': {'roles': ['hds-admin', 'hds-authz-admin']}}
+            assert keycloak.has_admin_role(claims) is False
+            assert keycloak.has_authz_admin_role(claims) is False
 
 
 class TestPasswordAdminLoginClosed:

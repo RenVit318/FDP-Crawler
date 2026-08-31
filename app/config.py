@@ -73,14 +73,27 @@ class Config:
     KEYCLOAK_REFRESH_LEEWAY: int = int(os.environ.get('KEYCLOAK_REFRESH_LEEWAY', 30))
     KEYCLOAK_VERIFY_SSL: bool = os.environ.get('KEYCLOAK_VERIFY_SSL', 'true').lower() != 'false'
 
-    # Keycloak role granting access to the admin panels. Checked against both
-    # realm roles and this client's roles, so either kind works. Assign it to
-    # the few people who should administer the site.
+    # Keycloak roles granting the admin panels. Checked against both realm
+    # roles and this client's roles, so either kind works.
+    #
+    # Two separate roles on purpose. Editing site content and managing who may
+    # reach data at the AllegroGraph instances are different powers, and the
+    # second is far more consequential — someone who maintains the About page
+    # should not thereby be able to grant data access across the data space.
+    # Neither role implies the other; grant both to people who need both.
+    #
+    # Per-deployment via environment, because each dataspace (HDS, AHDS, ...)
+    # runs its own instance against its own Keycloak client. AHDS sets e.g.
+    # KEYCLOAK_ADMIN_ROLE=ahds-admin and KEYCLOAK_AUTHZ_ADMIN_ROLE=ahds-authz-admin.
+    # The resolved names are logged at startup so a forgotten override is visible.
     #
     # Keycloak does not put roles in the ID token by default — add a "User
     # Realm Role" (or "User Client Role") mapper on the client with "Add to ID
     # token" enabled, or the claim is absent and nobody is ever an admin.
     KEYCLOAK_ADMIN_ROLE: str = os.environ.get('KEYCLOAK_ADMIN_ROLE', 'hds-admin')
+    KEYCLOAK_AUTHZ_ADMIN_ROLE: str = os.environ.get(
+        'KEYCLOAK_AUTHZ_ADMIN_ROLE', 'hds-authz-admin'
+    )
 
     # Treat every request as https, regardless of what the reverse proxy
     # forwards. The public deployment is https-only, so generated external URLs
