@@ -150,6 +150,18 @@ def keycloak_callback() -> str:
         'auth_method': 'keycloak',
     }
     keycloak.store_tokens(token)
+
+    # One login for both: holding the admin role elevates this same session,
+    # so there is no separate admin sign-in. Roles are read once, at login.
+    if keycloak.has_admin_role(claims):
+        session['is_admin'] = True
+        session['admin_username'] = username
+        logger.info(f'Admin session granted to {username} via Keycloak role')
+    else:
+        # Never inherit elevation from a previous session on this browser.
+        session.pop('is_admin', None)
+        session.pop('admin_username', None)
+
     session.modified = True
 
     flash(f'Welcome, {username}!', 'success')
@@ -178,11 +190,14 @@ def logout() -> str:
     if user.get('auth_method') == 'keycloak' and keycloak.is_enabled():
         keycloak_logout = keycloak.logout_url(url_for('main.index', _external=True))
 
-    # Clear user-related session data
+    # Clear user-related session data. Admin elevation goes with it: the two
+    # are one session now, so signing out of the portal drops admin rights.
     session.pop('user', None)
     session.pop('endpoint_credentials', None)
     session.pop('query_result', None)
     session.pop('keycloak_next', None)
+    session.pop('is_admin', None)
+    session.pop('admin_username', None)
     keycloak.clear_tokens()
     session.modified = True
 

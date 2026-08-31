@@ -20,7 +20,7 @@ from app.services.admin_service import (
     get_all_page_keys,
     get_default_fields,
 )
-from app.services import dashboard_service
+from app.services import dashboard_service, keycloak
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -40,6 +40,17 @@ def admin_required(f):
 def login():
     if session.get('is_admin'):
         return redirect(url_for('admin.dashboard'))
+
+    # Where Keycloak is configured it is the only way in — admin rights come
+    # from the hds-admin role on the single sign-in button, and the local
+    # password account is refused (see admin_service.verify_admin).
+    #
+    # The password form survives only for local development, where Keycloak is
+    # unconfigured and there would otherwise be no way to reach the panel. This
+    # is fail-closed: is_enabled() reads configuration, not Keycloak's health,
+    # so an outage cannot reopen the password path.
+    if keycloak.is_enabled():
+        return redirect(url_for('auth.keycloak_login', next=url_for('admin.dashboard')))
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip()

@@ -7,7 +7,9 @@ services:
       - "127.0.0.1:5000:5000"
     environment:
       - DATASPACE=${DATASPACE:-humanitarian}
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      # No default: a known signing key lets anyone forge session cookies.
+      # Startup fails loudly rather than falling back to a placeholder.
+      - SECRET_KEY=${SECRET_KEY:?set a strong secret in .env}
       - FLASK_ENV=${FLASK_ENV:-production}
       # Served over https behind the reverse proxy, so generated external URLs
       # must be https — the Keycloak redirect URI above all.
@@ -27,7 +29,11 @@ services:
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-}
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
     volumes:
-      - dashboard_data:/app/app/data/dashboard
+      # The whole data directory, not just dashboard/. admin.json lives here
+      # and holds the editable page content; mounting only the subdirectory
+      # left it in the container's writable layer, so every rebuild silently
+      # discarded every page edit.
+      - app_data:/app/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
@@ -37,4 +43,4 @@ services:
       start_period: 10s
 
 volumes:
-  dashboard_data:
+  app_data:

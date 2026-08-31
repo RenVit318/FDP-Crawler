@@ -3,6 +3,7 @@
 import logging
 import os
 import secrets
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -18,7 +19,11 @@ class Config:
 
     FDP_TIMEOUT: int = int(os.environ.get('FDP_TIMEOUT', 30))
     LOG_LEVEL: str = os.environ.get('LOG_LEVEL', 'INFO')
-    FDP_VERIFY_SSL: bool = os.environ.get('FDP_VERIFY_SSL', 'false').lower() != 'false'
+    # Verify TLS certificates when scraping FDPs. On by default: the portal
+    # brokers access to data it does not hold, so an unverified fetch is a
+    # man-in-the-middle opportunity. Set FDP_VERIFY_SSL=false to opt out for a
+    # specific deployment with a self-signed FDP — explicitly, not silently.
+    FDP_VERIFY_SSL: bool = os.environ.get('FDP_VERIFY_SSL', 'true').lower() != 'false'
 
     # DEFAULT_FDPS is supplied by the selected dataspace (see dataspaces/<name>/config.py).
 
@@ -68,6 +73,15 @@ class Config:
     KEYCLOAK_REFRESH_LEEWAY: int = int(os.environ.get('KEYCLOAK_REFRESH_LEEWAY', 30))
     KEYCLOAK_VERIFY_SSL: bool = os.environ.get('KEYCLOAK_VERIFY_SSL', 'true').lower() != 'false'
 
+    # Keycloak role granting access to the admin panels. Checked against both
+    # realm roles and this client's roles, so either kind works. Assign it to
+    # the few people who should administer the site.
+    #
+    # Keycloak does not put roles in the ID token by default — add a "User
+    # Realm Role" (or "User Client Role") mapper on the client with "Add to ID
+    # token" enabled, or the claim is absent and nobody is ever an admin.
+    KEYCLOAK_ADMIN_ROLE: str = os.environ.get('KEYCLOAK_ADMIN_ROLE', 'hds-admin')
+
     # Treat every request as https, regardless of what the reverse proxy
     # forwards. The public deployment is https-only, so generated external URLs
     # (above all the Keycloak redirect URI, which Keycloak matches literally
@@ -80,3 +94,11 @@ class Config:
     SESSION_TYPE: str = 'filesystem'
     SESSION_COOKIE_HTTPONLY: bool = True
     SESSION_COOKIE_SAMESITE: str = 'Lax'
+    # Never send the session cookie over plain http. Derived from the effective
+    # FORCE_HTTPS in create_app, so local development over http still works.
+    SESSION_COOKIE_SECURE: bool = FORCE_HTTPS
+    # Sessions hold SPARQL credentials and, for admins, an elevation flag.
+    # 8 hours rather than Flask's 31-day default keeps that window short.
+    PERMANENT_SESSION_LIFETIME: timedelta = timedelta(
+        seconds=int(os.environ.get('SESSION_LIFETIME', 28800))
+    )

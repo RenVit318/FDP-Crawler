@@ -113,6 +113,42 @@ def get_client():
     return oauth.keycloak if oauth else None
 
 
+def roles_from_claims(claims: Dict[str, Any]) -> set:
+    """Extract the user's roles from OIDC claims.
+
+    Reads both realm roles (``realm_access.roles``) and this client's roles
+    (``resource_access.<client_id>.roles``), so either kind of Keycloak role
+    grants access without the app needing to know which was used.
+
+    Returns an empty set when no roles claim is present at all — which usually
+    means the role mapper is missing on the Keycloak client rather than that
+    the user genuinely has no roles, so that case is logged.
+    """
+    realm_roles = (claims.get('realm_access') or {}).get('roles') or []
+
+    client_id = current_app.config.get('KEYCLOAK_CLIENT_ID', '')
+    resource_access = claims.get('resource_access') or {}
+    client_roles = (resource_access.get(client_id) or {}).get('roles') or []
+
+    if 'realm_access' not in claims and 'resource_access' not in claims:
+        logger.warning(
+            'Keycloak ID token carries no roles claim. Add a role mapper to the '
+            '%s client with "Add to ID token" enabled, or no one can be granted '
+            'the admin role.',
+            client_id or '<client>',
+        )
+
+    return set(realm_roles) | set(client_roles)
+
+
+def has_admin_role(claims: Dict[str, Any]) -> bool:
+    """Whether these claims grant the configured admin role."""
+    admin_role = current_app.config.get('KEYCLOAK_ADMIN_ROLE')
+    if not admin_role:
+        return False
+    return admin_role in roles_from_claims(claims)
+
+
 def store_tokens(token: Dict[str, Any]) -> None:
     """Persist the tokens from an authorization-code or refresh exchange."""
     session[SESSION_TOKEN_KEY] = _normalize(token)

@@ -64,7 +64,9 @@
                         </button>
                     </form>
                 </li>
-                {% else %}
+                {% elif not site.keycloak_enabled %}
+                {# With Keycloak, admin rights come from the role on the single
+                   sign-in button, so there is no separate admin login link. #}
                 <li><a href="{{ url_for('admin.login') }}" class="btn btn-sm btn-secondary" style="padding: 0.4rem 0.8rem; color: white;">Admin</a></li>
                 {% endif %}
             </ul>

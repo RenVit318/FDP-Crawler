@@ -68,7 +68,18 @@ def _ensure_admin():
 
 
 def verify_admin(username, password):
-    """Return True if username/password match the stored admin credentials."""
+    """Return True if username/password match the stored admin credentials.
+
+    Always False once Keycloak is configured: admin rights then come solely
+    from the Keycloak role, and the seeded local account must not be a second
+    way in. Enforced here as well as in the route so no future caller can
+    reach the password path by accident.
+    """
+    from app.services import keycloak
+
+    if has_app_context() and keycloak.is_enabled():
+        return False
+
     data = _ensure_admin()
     admin = data.get('admin', {})
     if username != admin.get('username'):

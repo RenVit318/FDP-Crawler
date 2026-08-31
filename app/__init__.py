@@ -129,6 +129,10 @@ def create_app(config_override: Optional[Dict[str, Any]] = None) -> Flask:
     if force_https:
         app.wsgi_app = _ForceHttpsScheme(app.wsgi_app)
 
+    # Derived here rather than on Config so it tracks the effective value after
+    # any override, not whatever the environment held at import time.
+    app.config['SESSION_COOKIE_SECURE'] = bool(force_https)
+
     # Initialize server-side sessions (filesystem-backed)
     from flask_session import Session
     Session(app)
